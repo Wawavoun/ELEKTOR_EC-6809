@@ -32,7 +32,7 @@ WARNING :
 
 CPU gerber need debug. I found an original board and did not build mine starting from those gerber !
 
-FDC+VDU gerbers are fully debugged.
+FDC+VDU gerber are fully debugged.
 
 
 FLEX and newdisk are "do it myself" adaptations. The original version was lost.
