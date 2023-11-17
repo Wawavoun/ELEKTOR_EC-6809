@@ -1,0 +1,181 @@
+
+                      ;* SINGLE OR DOUBLE DENSITY LOADER FOR EC-6809
+
+                      ;* CONSTANTS
+
+                      ;* EXTERNAL LABEL EQUATES
+
+ EC04                 COMREG  EQU     $EC04       ; FLOPPY CTLR
+ EC05                 TRKREG  EQU     $EC05
+ EC06                 SECREG  EQU     $EC06
+ EC07                 DATREG  EQU     $EC07
+ EC0C                 DRVREG  EQU     $EC0C
+ C0FF                 STACK   EQU     $C0FF
+ C300                 SCTBUF  EQU     $C300
+
+                              ORG     $C100
+
+ C100 200B            CMDADR  BRA    CMDSTA
+
+ C102 0000                    FCB     $00,$00
+ C104 00                      FCB     $00
+ C105 1C              FLXTRK  FCB     $1C         ; FILE START TRACK
+ C106 01                      FCB     $01         ; FILE START SECTOR
+ C107 00              DNS     FCB     $00         ; DENSITY FLAG
+ C108 C100            TADR    FCB     $C1,$00     ; TRANSFER ADDRESS
+ C10A 0000            LADR1   FCB     $00,$00
+ C10C 00                      FCB     $00
+
+ C10D 10CEC0FF        CMDSTA  LDS     #STACK      ; SETUP STACK
+ C111 FCC105                  LDD     FLXTRK      ; GET TRANSFER ADDRESS
+ C114 FDC300                  STD     SCTBUF      ; SETUP STARTING TRK & SCT
+ C117 108EC400                LDY     #SCTBUF+256
+                              
+                      ;* MESSAGES
+ C11B 8EC1E7                  LDX    #MLOAD
+ C11E 3F                      SWI
+ C11F 03                      FCB     $03         ; PRINT
+ C120 3F                      SWI
+ C121 06                      FCB    $06
+                              
+                      ;* PERFORM ACTUAL BOOT LOAD
+
+ C122 8D35            LOAD1   BSR     GETCH       ; GET A CHARACTER
+ C124 8102                    CMPA    #$02        ; DATA RECORD HEADER ?
+ C126 2710                    BEQ     LOAD2       ; SKIP IF SO
+ C128 8116                    CMPA    #$16        ; XFR ADDRESS HEADER?
+ C12A 26F6                    BNE     LOAD1       ; LOOP IF NEITHER
+ C12C 8D2B                    BSR     GETCH       ; GET TRANSFER ADDRESS
+ C12E B7C108                  STA     TADR
+ C131 8D26                    BSR     GETCH
+ C133 B7C109                  STA     TADR+1
+ C136 20EA                    BRA     LOAD1       ; CONTINUE LOAD
+                              
+ C138 8D1F            LOAD2   BSR     GETCH       ; GET LOAD ADDRESS
+ C13A B7C10A                  STA     LADR1
+ C13D 8D1A                    BSR     GETCH
+ C13F B7C10B                  STA     LADR1+1
+ C142 8D15                    BSR     GETCH       ; GET BYTE COUNT
+ C144 1F89                    TFR     A,B         ; PUT IN B
+ C146 4D                      TSTA
+ C147 27D9                    BEQ     LOAD1       ; LOOP IF COUNT = 0
+ C149 BEC10A                  LDX     LADR1       ; GET LOAD ADDRESS
+ C14C 3414            LOAD3   PSHS    B,X
+ C14E 8D09                    BSR     GETCH       ; GET A DATA CHARACTER
+ C150 3514                    PULS    B,X
+ C152 A780                    STA     ,X+         ; PUT CHARACTER
+ C154 5A                      DECB                ; END OF DATA IN RECORD ?
+ C155 26F5                    BNE     LOAD3       ; LOOP IF NOT
+ C157 20C9                    BRA     LOAD1       ; GET ANOTHER RECORD
+
+                      ;* GET CHARACTER ROUTINE
+
+ C159 108CC400        GETCH   CMPY    #SCTBUF+256 ; OUT OF DATA ?
+ C15D 260F                    BNE     GETCH4      ; GO READ CHARACTER IF NOT
+ C15F 8EC300                  LDX     #SCTBUF     ; POINT TO BUFFER
+ C162 EC00                    LDD     0,X         ; GET FORWARD LINK
+ C164 270B                    BEQ     GO          ; IF ZERO, FILE IS LOADED
+ C166 8D0D                    BSR     READ        ; READ NEXT SECTOR
+ C168 2696                    BNE     CMDADR      ; START OVER IF ERROR
+ C16A 108EC304                LDY     #SCTBUF+4   ; POINT PAST LINK
+ C16E A6A0            GETCH4  LDA     ,Y+         ; ELSE GET A CHARACTER
+ C170 39                      RTS
+
+                      ;* FILE IS LOADED, JUMP TO IT
+
+ C171 6E9FC108        GO      JMP     [TADR]
+
+                      ;* READ SINGLE SECTOR
+
+ C175 8D37            READ    BSR     SEEK
+ C177 8680                    LDA     #$80        ; READ CMD
+ C179 B7EC04          SUIT1   STA     COMREG      ; APPLY CMD
+ C17C 170061                  LBSR    DEL28
+ C17F 5F                      CLRB
+ C180 8EC300                  LDX     #SCTBUF     ; LOAD DESTINATION
+ C183 B6EC04          READ3   LDA     COMREG
+ C186 8502                    BITA    #2          ; DRQ ?
+ C188 2608                    BNE     READ5
+ C18A 8501                    BITA    #1          ; BUSY ?
+ C18C 26F5                    BNE     READ3       ; LOOP IF YES
+ C18E 1F89                    TFR     A,B
+ C190 200A                    BRA     READ6
+                              
+ C192 B6EC07          READ5   LDA     DATREG
+ C195 A780                    STA     ,X+
+ C197 5A                      DECB
+ C198 26E9                    BNE     READ3       ; NEXT BYTE
+ C19A 8D0A                    BSR     WAIT
+ C19C C510            READ6   BITB    #$10        ; CHECK RNF
+ C19E 2703                    BEQ     READ8       ; NO, JUMP
+ C1A0 73C107                  COM     DNS         ; CHANGE DENSITY FOR NEXT 
+READ
+ C1A3 C51C            READ8   BITB    #$1C        ; CHECK FOR ERROR
+ C1A5 39                      RTS
+                       
+                      ;* ATTENTE FIN DE COMMANDE
+
+ C1A6 F6EC04          WAIT    LDB     COMREG
+ C1A9 C501                    BITB    #1
+ C1AB 26F9                    BNE     WAIT
+ C1AD 39                      RTS
+
+                      ;* SEEK
+
+ C1AE 3402            SEEK    PSHS    A
+ C1B0 7DC107                  TST     DNS
+ C1B3 2708                    BEQ     SIMPLE      ; SIMPLE DENSITY
+
+                      ;* DOUBLE DENSITY
+
+ C1B5 8601                    LDA     #%00000001  ; DRIVE 0/DD
+ C1B7 C112                    CMPB    #18         ; SECTOR BY SIDE
+ C1B9 230A                    BLS     SEEK1       ; GO SIDE 0
+ C1BB 2006                    BRA     SEEK2       ; GO SIDE 1
+
+                      ;* SIMPLE DENSITY 
+
+ C1BD 8641            SIMPLE  LDA     #%01000001  ; DRIVE 0/SD
+ C1BF C10A                    CMPB    #10         ; SECTOR BY SIDE 
+ C1C1 2302                    BLS     SEEK1       ; SIDE 0
+ C1C3 8A10            SEEK2   ORA     #%00010000  ; FORCE SIDE 1
+ C1C5 F7EC06          SEEK1   STB     SECREG
+ C1C8 B7EC0C                  STA     DRVREG      ; SETS DRIVE REG
+ C1CB 3502                    PULS    A
+ C1CD B1EC05                  CMPA    TRKREG      ; CHANGE TRACK ?
+ C1D0 270E                    BEQ     DEL28       ; NO, JUMP
+ C1D2 B7EC07                  STA     DATREG      ; NEW TRACK
+ C1D5 8D09                    BSR     DEL28
+ C1D7 861B                    LDA     #$1B
+ C1D9 B7EC04                  STA     COMREG
+ C1DC 8D02                    BSR     DEL28
+ C1DE 8DC6                    BSR     WAIT
+
+                      ;* BOUCLE DELAI
+
+ C1E0 BDC1E3          DEL28   JSR     DEL14
+ C1E3 BDC1E6          DEL14   JSR     DEL
+ C1E6 39              DEL     RTS
+
+ C1E7 4C6F6164696E67  MLOAD FCC "Loading..."
+ C1EE 2E2E2E
+ C1F1 04                    FCB $04
+
+                            ORG     $C200-4
+ C1FC 464C4558              FCB     'F', 'L', 'E', 'X'
+
+ C100                       END     CMDADR
+
+SYMBOL TABLE
+    CMDADR 02 C100    CMDSTA 02 C10D    COMREG 00 EC04    DATREG 00 EC07
+       DEL 02 C1E6     DEL14 02 C1E3     DEL28 02 C1E0       DNS 02 C107
+    DRVREG 00 EC0C    FLXTRK 02 C105     GETCH 02 C159    GETCH4 02 C16E
+        GO 02 C171     LADR1 02 C10A     LOAD1 02 C122     LOAD2 02 C138
+     LOAD3 02 C14C     MLOAD 02 C1E7      READ 02 C175     READ3 02 C183
+     READ5 02 C192     READ6 02 C19C     READ8 02 C1A3    SCTBUF 00 C300
+    SECREG 00 EC06      SEEK 02 C1AE     SEEK1 02 C1C5     SEEK2 02 C1C3
+    SIMPLE 02 C1BD     STACK 00 C0FF     SUIT1 02 C179      TADR 02 C108
+    TRKREG 00 EC05      WAIT 02 C1A6
+34 SYMBOLS
+
+0 error(s), 0 warning(s)
