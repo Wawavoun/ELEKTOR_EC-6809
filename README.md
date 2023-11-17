@@ -26,7 +26,9 @@ PCB include the Gerber files in zip archive if you want build the computer.
 Included is a modified bus board with a power supply connector and a reset pushbutton.
 
 WARNING :
+
 CPU gerber need debug. I found an original board and did not build mine starting from those gerber !
+
 FDC+VDU gerbers are fully debugged.
 
 FLEX and newdisk are "do it myself" adaptations. The original version was lost.
