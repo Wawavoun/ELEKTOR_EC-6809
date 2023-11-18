@@ -47,5 +47,7 @@ In case you have information about this software please take contact.
 Philippe
 
 Everything here is provided "AS IS" under GNU GPG V3.
+
 If possible I will support but depending of my free time and interrest. 
+
 If you use something still mention I am the author / adapter and send me a postcard from your country.
