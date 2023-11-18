@@ -1,6 +1,8 @@
 # ELEKTOR-EC-6809
 -1985- ELEKTOR 6809 2 BOARDS FLEX COMPUTER
 
+Original informations published by Elektor about this computer are in ELEKTOR COMPUTING n° 3.
+
 ESS540 is the boot rom.
 
 This eprom could need modification depending the screen you use (6845 table start at $310).
