@@ -99,7 +99,8 @@ OUTIN2  JSR     GETCHR      GET RESPONSE
         CMPA    #'Y         COMPARE TO Y SO Z IS SET IF YES
         RTS
 
-FORM1   LDA     #SMAX0      INIT PARAM FOR SD
+FORM1   JSR 	PCRLF
+		LDA     #SMAX0      INIT PARAM FOR SD
         STA     >MAXS0
         STA     >MAX
         LDA     #SMAXS1
@@ -142,7 +143,7 @@ FORM25
         BNE     FORM30      SKIP IF SD
         INC     >DENSE      SET DD
 FORM30  LDX     #DTSTR      ASK 80 TRACKS L061
-        BSR     OUTIN
+        LBSR     OUTIN
         BNE     FORM40      SKIP IF 40 TRACKS
         LDA     #$50        SET 80 TRACKS           
         STA     >TRACKS     SET TRACKS TO 80
@@ -175,6 +176,7 @@ EXIT    LDX     #ABORTS
 EXIT2   JSR     PSTRNG      
 EXIT3   JSR     FMSCLS
         ANDCC   #$EF
+        JSR		PCRLF
         JMP     WARMS       EXIT
 
 * MAIN FORMATTING LOOP
@@ -451,6 +453,10 @@ REMSE7  LDX     >SECCNT     GET SEC COUNT L036A
         JSR     PSTRNG      OUTPUT IT
         LDX     #TRACK      POINT TO ADDRESS
         JSR     OUTHEX      OUTPUT IT
+        *
+        LDX		#VRYTRK		DISPLAY NORMAL VERIFY MESSAGE
+        JSR		PSTRNG		OUTPUT IT
+        *
         LDA     #$20        
         JSR     PUTCHR      
         LEAX    1,X         BUMP TO NEXT

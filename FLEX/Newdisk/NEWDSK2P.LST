@@ -96,8 +96,8 @@ INDEX $4E LIMIT
  DE03                 DWRITE  EQU     $DE03
                       *REST    EQU     $DE09
  DE1B                 DSEEK   EQU     $DE1B
- DE0F                 DCHECK  EQU             $DE0F
- DE0C                 DDRIVE  EQU             $DE0C
+ DE0F                 DCHECK  EQU     $DE0F
+ DE0C                 DDRIVE  EQU     $DE0C
 
                               ORG     $0033
                               
@@ -115,678 +115,678 @@ INDEX $4E LIMIT
 YES
  010D 39                      RTS
 
- 010E 860A            FORM1   LDA     #SMAX0      INIT PARAM FOR SD
- 0110 B70030                  STA     >MAXS0
- 0113 B70032                  STA     >MAX
- 0116 8614                    LDA     #SMAXS1
- 0118 B70031                  STA     >MAXS1
- 011B BDCD42                  JSR     GETHEX      GET DRIVE NUMBER FROM 
+ 010E BDCD24          FORM1   JSR     PCRLF
+ 0111 860A                            LDA     #SMAX0      INIT PARAM FOR SD
+ 0113 B70030                  STA     >MAXS0
+ 0116 B70032                  STA     >MAX
+ 0119 8614                    LDA     #SMAXS1
+ 011B B70031                  STA     >MAXS1
+ 011E BDCD42                  JSR     GETHEX      GET DRIVE NUMBER FROM 
 COMMAND LINE
- 011E 102500A3                LBCS    EXIT        EXIT ON ERROR
- 0122 1F10                    TFR     X,D 
- 0124 10830002                CMPD    #$0002      ENSURE 0 TO 2
- 0128 10220099                LBHI    EXIT        EXIT IF NOT
- 012C 8E0800                  LDX     #WORK
- 012F E703                    STB     3,X
- 0131 F70023                  STB     >DRN
- 0134 8E0538                  LDX     #SURES      ASK IF SURE
- 0137 8DCA                    BSR     OUTIN
- 0139 10260088                LBNE    EXIT        EXIT IF NOT
- 013D 8E055C                  LDX     #SCRDS      ASK IF SCRATCH DISK SURE
- 0140 BDCD1E                  JSR     PSTRNG
- 0143 8E0802                  LDX     #WORK+2     CLEAR BAD COUNT
- 0146 6F00                    CLR     0,X
- 0148 5F                      CLRB
- 0149 BDCD39                  JSR     OUTDEC      DISPLAY
- 014C 863F                    LDA     #$3F        QUESTION MARK
- 014E BDCD18                  JSR     PUTCHR      DISPLAY
- 0151 8620                    LDA     #$20        SPACE
- 0153 BDCD18                  JSR     PUTCHR      DISPLAY
- 0156 8DAE                    BSR     OUTIN2      GET RESPONSE
- 0158 266B                    BNE     EXIT        EXIT IF SCRATCH NOT SURE
- 015A 7F0025                  CLR     >DBSDF
- 015D 8E05EB                  LDX     #DBST       ASK DUAL SIDE
- 0160 8DA1                    BSR     OUTIN       GET RESPONSE
- 0162 2608                    BNE     FORM25      SKIP IF SS
- 0164 7C0025                  INC     >DBSDF      SET VALUE FOR DS
- 0167 8614                    LDA     #SMAXS1
- 0169 B70032                  STA     >MAX
+ 0121 102500A4                LBCS    EXIT        EXIT ON ERROR
+ 0125 1F10                    TFR     X,D 
+ 0127 10830002                CMPD    #$0002      ENSURE 0 TO 2
+ 012B 1022009A                LBHI    EXIT        EXIT IF NOT
+ 012F 8E0800                  LDX     #WORK
+ 0132 E703                    STB     3,X
+ 0134 F70023                  STB     >DRN
+ 0137 8E0545                  LDX     #SURES      ASK IF SURE
+ 013A 8DC7                    BSR     OUTIN
+ 013C 10260089                LBNE    EXIT        EXIT IF NOT
+ 0140 8E0569                  LDX     #SCRDS      ASK IF SCRATCH DISK SURE
+ 0143 BDCD1E                  JSR     PSTRNG
+ 0146 8E0802                  LDX     #WORK+2     CLEAR BAD COUNT
+ 0149 6F00                    CLR     0,X
+ 014B 5F                      CLRB
+ 014C BDCD39                  JSR     OUTDEC      DISPLAY
+ 014F 863F                    LDA     #$3F        QUESTION MARK
+ 0151 BDCD18                  JSR     PUTCHR      DISPLAY
+ 0154 8620                    LDA     #$20        SPACE
+ 0156 BDCD18                  JSR     PUTCHR      DISPLAY
+ 0159 8DAB                    BSR     OUTIN2      GET RESPONSE
+ 015B 266C                    BNE     EXIT        EXIT IF SCRATCH NOT SURE
+ 015D 7F0025                  CLR     >DBSDF
+ 0160 8E05F8                  LDX     #DBST       ASK DUAL SIDE
+ 0163 8D9E                    BSR     OUTIN       GET RESPONSE
+ 0165 2608                    BNE     FORM25      SKIP IF SS
+ 0167 7C0025                  INC     >DBSDF      SET VALUE FOR DS
+ 016A 8614                    LDA     #SMAXS1
+ 016C B70032                  STA     >MAX
                       FORM25
- 016C 7F0026                  CLR     >DENSE      SET SD
- 016F 7F0027                  CLR     >DNSITY     SET SD
- 0172 8E05D4                  LDX     #DDSTR      ASK DD
- 0175 8D8C                    BSR     OUTIN
- 0177 2603                    BNE     FORM30      SKIP IF SD
- 0179 7C0026                  INC     >DENSE      SET DD
- 017C 8E0600          FORM30  LDX     #DTSTR      ASK 80 TRACKS L061
- 017F 8D82                    BSR     OUTIN
- 0181 2605                    BNE     FORM40      SKIP IF 40 TRACKS
- 0183 8650                    LDA     #$50            SET 80 TRACKS           
- 0185 B70033                  STA     >TRACKS     SET TRACKS TO 80
- 0188 8E0613          FORM40  LDX     #MNSTR      ASK VOLUME NAME L016C
- 018B BDCD1E                  JSR     PSTRNG
- 018E BDCD1B                  JSR     INBUFF
- 0191 8E0034                  LDX     #FKFCB
- 0194 BDCD2D                  JSR     GETFIL
- 0197 8E0622          FORM27  LDX     #NUMSTR     ASK VOLUME NUMBER
- 019A BDCD1E                  JSR     PSTRNG
- 019D BDCD1B                  JSR     INBUFF
- 01A0 BDCD48                  JSR     INDEC
- 01A3 25F2                    BCS     FORM27
- 01A5 BF0043                  STX     >VOLNUM
- 01A8 BDCD24                  JSR     PCRLF
- 01AB 8E0800                  LDX             #WORK
- 01AE BDDE0C                  JSR             DDRIVE          SELECT DRIVE
- 01B1 BD06CE                  JSR     RESTOR      RESTORE DRIVE
- 01B4 271D                    BEQ     FORMAT      NO SEEK ERROR AFTER RESTORE 
+ 016F 7F0026                  CLR     >DENSE      SET SD
+ 0172 7F0027                  CLR     >DNSITY     SET SD
+ 0175 8E05E1                  LDX     #DDSTR      ASK DD
+ 0178 8D89                    BSR     OUTIN
+ 017A 2603                    BNE     FORM30      SKIP IF SD
+ 017C 7C0026                  INC     >DENSE      SET DD
+ 017F 8E060D          FORM30  LDX     #DTSTR      ASK 80 TRACKS L061
+ 0182 17FF7E                  LBSR     OUTIN
+ 0185 2605                    BNE     FORM40      SKIP IF 40 TRACKS
+ 0187 8650                    LDA     #$50        SET 80 TRACKS           
+ 0189 B70033                  STA     >TRACKS     SET TRACKS TO 80
+ 018C 8E0620          FORM40  LDX     #MNSTR      ASK VOLUME NAME L016C
+ 018F BDCD1E                  JSR     PSTRNG
+ 0192 BDCD1B                  JSR     INBUFF
+ 0195 8E0034                  LDX     #FKFCB
+ 0198 BDCD2D                  JSR     GETFIL
+ 019B 8E062F          FORM27  LDX     #NUMSTR     ASK VOLUME NUMBER
+ 019E BDCD1E                  JSR     PSTRNG
+ 01A1 BDCD1B                  JSR     INBUFF
+ 01A4 BDCD48                  JSR     INDEC
+ 01A7 25F2                    BCS     FORM27
+ 01A9 BF0043                  STX     >VOLNUM
+ 01AC BDCD24                  JSR     PCRLF
+ 01AF 8E0800                  LDX     #WORK
+ 01B2 BDDE0C                  JSR     DDRIVE      SELECT DRIVE
+ 01B5 BD06DB                  JSR     RESTOR      RESTORE DRIVE
+ 01B8 2720                    BEQ     FORMAT      NO SEEK ERROR AFTER RESTORE 
 -> FORMAT
- 01B6 8E0548                  LDX     #WPST       LOAD WRITE PROTECT MESSAGE
- 01B9 C540                    BITB    #$40        TEST WRITE PROTECTED FLOPPY
- 01BB 260B                    BNE     EXIT2       EXIT WITH WRITE PROTECT 
+ 01BA 8E0555                  LDX     #WPST       LOAD WRITE PROTECT MESSAGE
+ 01BD C540                    BITB    #$40        TEST WRITE PROTECTED FLOPPY
+ 01BF 260B                    BNE     EXIT2       EXIT WITH WRITE PROTECT 
 MESSAGE
- 01BD 8E0800                  LDX             #WORK
- 01C0 BDDE0F                  JSR             DCHECK          DRIVE READY 
-CHECK
- 01C3 240E                            BCC             FORMAT          DRIVE 
-READY -> FORMAT
+ 01C1 8E0800                  LDX     #WORK
+ 01C4 BDDE0F                  JSR     DCHECK      DRIVE READY CHECK
+ 01C7 2411                    BCC     FORMAT      DRIVE READY -> FORMAT
 
                       * EXIT ROUTINES
 
- 01C5 8E0587          EXIT    LDX     #ABORTS
- 01C8 BDCD1E          EXIT2   JSR     PSTRNG      
- 01CB BDD403          EXIT3   JSR     FMSCLS
- 01CE 1CEF                    ANDCC   #$EF
- 01D0 7ECD03                  JMP     WARMS       EXIT
+ 01C9 8E0594          EXIT    LDX     #ABORTS
+ 01CC BDCD1E          EXIT2   JSR     PSTRNG      
+ 01CF BDD403          EXIT3   JSR     FMSCLS
+ 01D2 1CEF                    ANDCC   #$EF
+ 01D4 BDCD24                  JSR             PCRLF
+ 01D7 7ECD03                  JMP     WARMS       EXIT
 
                       * MAIN FORMATTING LOOP
 
- 01D3 8E0633          FORMAT  LDX             #INITRK         DISPLAY
- 01D6 BDCD1E                          JSR             PSTRNG
-                                      *
- 01D9 1A10                            ORCC    #$10        SET INTERRUPT BIT
- 01DB 7F0020                  CLR     >TRACK      TRACK 0
- 01DE 7F0024          FORM3   CLR     >SIDE       SIDE 0  
- 01E1 7F0021                  CLR     >SECTOR     SECTOR 0
- 01E4 8D5A                    BSR     TRKHD       GO PREPARE TRACK
- 01E6 8E0800          FORM32  LDX     #WORK
- 01E9 7D0027                  TST     >DNSITY     TEST DENSITY
- 01EC 2703                    BEQ     FORM4       SKIP IF SD
- 01EE 8E0800                  LDX     #WORK
- 01F1 170087          FORM4   LBSR    DOSEC       GO DO SECTOR
- 01F4 7C0021                  INC     >SECTOR     INC SECTOR
- 01F7 B60021                  LDA     >SECTOR
- 01FA 7D0024                  TST     >SIDE       TEST SIDE 
- 01FD 2605                    BNE     FORM45      BRANCH IF SIDE 1
- 01FF B10030                  CMPA    >MAXS0      TEST SECTOR WITH MAX SIDE 0
- 0202 2003                    BRA     FORM46      
- 0204 B10031          FORM45  CMPA    >MAXS1      TEST SECTOR WITH MAX SIDE 1
- 0207 26E8            FORM46  BNE     FORM4       LOOP FOR NEXT SECTOR OR END 
+ 01DA 8E0640          FORMAT  LDX     #INITRK     DISPLAY
+ 01DD BDCD1E                  JSR     PSTRNG
+                              *
+ 01E0 1A10                    ORCC    #$10        SET INTERRUPT BIT
+ 01E2 7F0020                  CLR     >TRACK      TRACK 0
+ 01E5 7F0024          FORM3   CLR     >SIDE       SIDE 0  
+ 01E8 7F0021                  CLR     >SECTOR     SECTOR 0
+ 01EB 8D5A                    BSR     TRKHD       GO PREPARE TRACK
+ 01ED 8E0800          FORM32  LDX     #WORK
+ 01F0 7D0027                  TST     >DNSITY     TEST DENSITY
+ 01F3 2703                    BEQ     FORM4       SKIP IF SD
+ 01F5 8E0800                  LDX     #WORK
+ 01F8 170087          FORM4   LBSR    DOSEC       GO DO SECTOR
+ 01FB 7C0021                  INC     >SECTOR     INC SECTOR
+ 01FE B60021                  LDA     >SECTOR
+ 0201 7D0024                  TST     >SIDE       TEST SIDE 
+ 0204 2605                    BNE     FORM45      BRANCH IF SIDE 1
+ 0206 B10030                  CMPA    >MAXS0      TEST SECTOR WITH MAX SIDE 0
+ 0209 2003                    BRA     FORM46      
+ 020B B10031          FORM45  CMPA    >MAXS1      TEST SECTOR WITH MAX SIDE 1
+ 020E 26E8            FORM46  BNE     FORM4       LOOP FOR NEXT SECTOR OR END 
 LOOP
- 0209 B60020                  LDA     >TRACK
- 020C F60024                  LDB     >SIDE       FAKE SECTOR NUMBER - OVER 
+ 0210 B60020                  LDA     >TRACK
+ 0213 F60024                  LDB     >SIDE       FAKE SECTOR NUMBER - OVER 
 $12 FOR SIDE 1
- 020F BDDE1B                  JSR     DSEEK       SEEK DRIVE TO TRACK
- 0212 BD0661                  JSR     WTTRK       WRITE TRACK
- 0215 7D0025                  TST     >DBSDF      TEST SINGLE SIDE DISK
- 0218 270F                    BEQ     FORM6       SKIP IF YES
- 021A 7D0024                  TST     >SIDE       TEST ACTUAL SIDE
- 021D 260A                    BNE     FORM6       SKIP IF SIDE 1
- 021F B60024                  LDA     >SIDE        
- 0222 8820                    EORA    #%00100000  COME HERE IF DS AND SIDE=0 
+ 0216 BDDE1B                  JSR     DSEEK       SEEK DRIVE TO TRACK
+ 0219 BD066E                  JSR     WTTRK       WRITE TRACK
+ 021C 7D0025                  TST     >DBSDF      TEST SINGLE SIDE DISK
+ 021F 270F                    BEQ     FORM6       SKIP IF YES
+ 0221 7D0024                  TST     >SIDE       TEST ACTUAL SIDE
+ 0224 260A                    BNE     FORM6       SKIP IF SIDE 1
+ 0226 B60024                  LDA     >SIDE        
+ 0229 8820                    EORA    #%00100000  COME HERE IF DS AND SIDE=0 
 SO NOW SIDE=$20 (>$12)
- 0224 B70024                  STA     >SIDE       STORE NEW SIDE / FAKE SECTOR 
+ 022B B70024                  STA     >SIDE       STORE NEW SIDE / FAKE SECTOR 
 NUMBER
- 0227 20BD                    BRA     FORM32      DO ALL AGAIN FOR SIDE 1
- 0229 7C0020          FORM6   INC     >TRACK      INC TRACK
- 022C BD037D                  JSR     SWITCH      GO TO CHECK DENSITY AND 
+ 022E 20BD                    BRA     FORM32      DO ALL AGAIN FOR SIDE 1
+ 0230 7C0020          FORM6   INC     >TRACK      INC TRACK
+ 0233 BD0384                  JSR     SWITCH      GO TO CHECK DENSITY AND 
 CHANGE IF DD
- 022F B60020                  LDA     >TRACK      LOAD CURRENT TRACK
- 0232 B10033                  CMPA    >TRACKS     COMPARE WITH MAX TRACK
- 0235 26A7                    BNE     FORM3       LOOP FOR NEXT TRACK
+ 0236 B60020                  LDA     >TRACK      LOAD CURRENT TRACK
+ 0239 B10033                  CMPA    >TRACKS     COMPARE WITH MAX TRACK
+ 023C 26A7                    BNE     FORM3       LOOP FOR NEXT TRACK
                               *
- 0237 8E0644                  LDX             #VRYTRK         VERIFY MESSAGE
- 023A BDCD1E                  JSR             PSTRNG
+ 023E 8E0651                  LDX     #VRYTRK     VERIFY MESSAGE
+ 0241 BDCD1E                  JSR     PSTRNG
                               *
- 023D 1600C8                  LBRA    SETUP       END OF FORMATTING LOOP - GO 
+ 0244 1600C8                  LBRA    SETUP       END OF FORMATTING LOOP - GO 
 TO VERIFY
 
                       *SET UP TRACK HEADER INFORMATION
 
- 0240 8E0800          TRKHD   LDX     #WORK       POINT TO BUFFER 
- 0243 7D0027                  TST     >DNSITY     TEST DENSITY
- 0246 2611                    BNE     TRHDD       SKIP IF DD
- 0248 C6FF                    LDB     #$FF        INIT WITH $FF
- 024A E780            TRHDS1  STB     0,X+        
- 024C 8C13EA                  CMPX    #SWKEND     UNTIL FMS END FOR SD
- 024F 26F9                    BNE     TRHDS1
- 0251 8E081E                  LDX     #L081E
- 0254 4F                      CLRA                SET IN 0
- 0255 C606                    LDB     #6
- 0257 2015                    BRA     TRKHD1
- 0259 C64E            TRHDD   LDB     #$4E        INIT WITH $4E
- 025B E780            TRHDD1  STB     0,X+        L020F
- 025D 8C1FD4                  CMPX    #DWKEND     UNTIL END FOR DD
- 0260 26F9                    BNE     TRHDD1
- 0262 8E083C                  LDX     #L083C
- 0265 4F                      CLRA                SET IN 0
- 0266 C60C                    LDB     #$0C
- 0268 8D0B                    BSR     SET
- 026A 86F6                    LDA     #$F6
- 026C C603                    LDB     #3
- 026E 8D05            TRKHD1  BSR     SET         L0222
- 0270 86FC                    LDA     #$FC        SET INDEX MARK
- 0272 A700                    STA     0,X
- 0274 39                      RTS
+ 0247 8E0800          TRKHD   LDX     #WORK       POINT TO BUFFER 
+ 024A 7D0027                  TST     >DNSITY     TEST DENSITY
+ 024D 2611                    BNE     TRHDD       SKIP IF DD
+ 024F C6FF                    LDB     #$FF        INIT WITH $FF
+ 0251 E780            TRHDS1  STB     0,X+        
+ 0253 8C13EA                  CMPX    #SWKEND     UNTIL FMS END FOR SD
+ 0256 26F9                    BNE     TRHDS1
+ 0258 8E081E                  LDX     #L081E
+ 025B 4F                      CLRA                SET IN 0
+ 025C C606                    LDB     #6
+ 025E 2015                    BRA     TRKHD1
+ 0260 C64E            TRHDD   LDB     #$4E        INIT WITH $4E
+ 0262 E780            TRHDD1  STB     0,X+        L020F
+ 0264 8C1FD4                  CMPX    #DWKEND     UNTIL END FOR DD
+ 0267 26F9                    BNE     TRHDD1
+ 0269 8E083C                  LDX     #L083C
+ 026C 4F                      CLRA                SET IN 0
+ 026D C60C                    LDB     #$0C
+ 026F 8D0B                    BSR     SET
+ 0271 86F6                    LDA     #$F6
+ 0273 C603                    LDB     #3
+ 0275 8D05            TRKHD1  BSR     SET         L0222
+ 0277 86FC                    LDA     #$FC        SET INDEX MARK
+ 0279 A700                    STA     0,X
+ 027B 39                      RTS
 
                       * FILL (B) BYTES OF MEMORY WITH (A) STARTING AT (X)
 
- 0275 A780            SET     STA     0,X+
- 0277 5A                      DECB
- 0278 26FB                    BNE     SET
- 027A 39                      RTS
+ 027C A780            SET     STA     0,X+
+ 027E 5A                      DECB
+ 027F 26FB                    BNE     SET
+ 0281 39                      RTS
 
                       * PROCESS SECTOR IN RAM
 
- 027B 4F              DOSEC   CLRA
- 027C 7D0027                  TST     >DNSITY     DOUBLE DENSITY ?
- 027F 2604                    BNE     DOSE1       SKIP IF SO
- 0281 C606                    LDB     #$06        CLEAR 6 BYTES
- 0283 2008                    BRA     DOSE2       DOSE2 JUMP
- 0285 C60C            DOSE1   LDB     #$0C        CLEAR 12 BYTES L0238
- 0287 8DEC                    BSR     SET         
- 0289 86F5                    LDA     #$F5        SET IN 3 $F5'S
- 028B C603                    LDB     #$03
- 028D 8DE6            DOSE2   BSR     SET         L0240
- 028F 86FE                    LDA     #$FE        ID ADRESS MARK
- 0291 A780                    STA     0,X+        
- 0293 B60020                  LDA     >TRACK      GET TRACK NO
- 0296 A780                    STA     0,X+        
- 0298 F60027                  LDB     >DNSITY     DOUBLE DENSITY ?
- 029B 2705                    BEQ     DOSE3       SKIP IF NOT
- 029D F60024                  LDB     >SIDE       GET SIDE INDICATOR
- 02A0 C401                    ANDB    #$01        MAKE IT 0 OR 1
- 02A2 E780            DOSE3   STB     0,X+        L0252
- 02A4 F60021                  LDB     >SECTOR     GET SECTOR NO
- 02A7 108E0500                LDY     #SSCMAP     POINT TO CORRECT MAP
- 02AB 7D0027                  TST     >DNSITY     
- 02AE 2704                    BEQ     DOSE4       
- 02B0 108E0514                LDY     #DSCMAP     
- 02B4 E6A5            DOSE4   LDB     B,Y         GET ACTUAL SECTOR L0262
- 02B6 E780                    STB     0,X+        
- 02B8 F10032                  CMPB    >MAX        END OF TRACK ?
- 02BB 260A                    BNE     DOSE5       SKIP IF NOT
- 02BD 4C                      INCA                BUMP TRACK NO
- 02BE 5F                      CLRB                RESET SECTOR NO
- 02BF B10033                  CMPA    >TRACKS     MAXTRK END OF DISK ?
- 02C2 2603                    BNE     DOSE5       SKIP IF NOT
- 02C4 4F                      CLRA                SET ZERO FORWARD LINK
- 02C5 C6FF                    LDB     #$FF        
- 02C7 5C              DOSE5   INCB                SECTOR NO L0273
- 02C8 3406                    PSHS    A,B         SAVE FORWARD LINK
- 02CA 8601                    LDA     #1          SECTOR LENTH = 256
- 02CC A780                    STA     0,X+        
- 02CE 86F7                    LDA     #$F7        SET CRC CODE
- 02D0 A780                    STA     0,X+        
- 02D2 7D0027                  TST     >DNSITY     DOUBLE DENSITY ?
- 02D5 2607                    BNE     DOSE6       SKIP IF SO
- 02D7 300B                    LEAX    11,X        LEAVE $FF'S
- 02D9 4F                      CLRA                PUT IN 6 ZEROS
- 02DA C606                    LDB     #6          
- 02DC 200C                    BRA     DOSE7
- 02DE 308816          DOSE6   LEAX    22,X        LEAVE $4E'S L0289
- 02E1 4F                      CLRA                PUT IN 12 ZEROS
- 02E2 C60C                    LDB     #$0C        
- 02E4 8D8F                    BSR     SET         
- 02E6 86F5                    LDA     #$F5        PUT IN 3 $F5'S
- 02E8 C603                    LDB     #3          
- 02EA 8D89            DOSE7   BSR     SET         L0295
- 02EC 86FB                    LDA     #$FB        DATA ADRESS MARK
- 02EE A780                    STA     0,X+        
- 02F0 3506                    PULS    A,B         RESTORE FORWARD LINK
- 02F2 ED81                    STD     0,X++       PUT IN SECTOR BUFFER
- 02F4 4F                      CLRA                
- 02F5 C6FE                    LDB     #$FE        
- 02F7 17FF7B                  LBSR    SET         
- 02FA 86F7                    LDA     #$F7        SET CRC CODE
- 02FC A780                    STA     0,X+        
- 02FE 300C                    LEAX    12,X        LEAVE GAP (10)
- 0300 7D0027                  TST     >DNSITY     DOUBLE DENSITY ?
- 0303 2702                    BEQ     DOSECA      SKIP IF NOT
- 0305 300C                    LEAX    12,X        DD NEEDS MORE GAPS
- 0307 39              DOSECA  RTS
+ 0282 4F              DOSEC   CLRA
+ 0283 7D0027                  TST     >DNSITY     DOUBLE DENSITY ?
+ 0286 2604                    BNE     DOSE1       SKIP IF SO
+ 0288 C606                    LDB     #$06        CLEAR 6 BYTES
+ 028A 2008                    BRA     DOSE2       DOSE2 JUMP
+ 028C C60C            DOSE1   LDB     #$0C        CLEAR 12 BYTES L0238
+ 028E 8DEC                    BSR     SET         
+ 0290 86F5                    LDA     #$F5        SET IN 3 $F5'S
+ 0292 C603                    LDB     #$03
+ 0294 8DE6            DOSE2   BSR     SET         L0240
+ 0296 86FE                    LDA     #$FE        ID ADRESS MARK
+ 0298 A780                    STA     0,X+        
+ 029A B60020                  LDA     >TRACK      GET TRACK NO
+ 029D A780                    STA     0,X+        
+ 029F F60027                  LDB     >DNSITY     DOUBLE DENSITY ?
+ 02A2 2705                    BEQ     DOSE3       SKIP IF NOT
+ 02A4 F60024                  LDB     >SIDE       GET SIDE INDICATOR
+ 02A7 C401                    ANDB    #$01        MAKE IT 0 OR 1
+ 02A9 E780            DOSE3   STB     0,X+        L0252
+ 02AB F60021                  LDB     >SECTOR     GET SECTOR NO
+ 02AE 108E050D                LDY     #SSCMAP     POINT TO CORRECT MAP
+ 02B2 7D0027                  TST     >DNSITY     
+ 02B5 2704                    BEQ     DOSE4       
+ 02B7 108E0521                LDY     #DSCMAP     
+ 02BB E6A5            DOSE4   LDB     B,Y         GET ACTUAL SECTOR L0262
+ 02BD E780                    STB     0,X+        
+ 02BF F10032                  CMPB    >MAX        END OF TRACK ?
+ 02C2 260A                    BNE     DOSE5       SKIP IF NOT
+ 02C4 4C                      INCA                BUMP TRACK NO
+ 02C5 5F                      CLRB                RESET SECTOR NO
+ 02C6 B10033                  CMPA    >TRACKS     MAXTRK END OF DISK ?
+ 02C9 2603                    BNE     DOSE5       SKIP IF NOT
+ 02CB 4F                      CLRA                SET ZERO FORWARD LINK
+ 02CC C6FF                    LDB     #$FF        
+ 02CE 5C              DOSE5   INCB                SECTOR NO L0273
+ 02CF 3406                    PSHS    A,B         SAVE FORWARD LINK
+ 02D1 8601                    LDA     #1          SECTOR LENTH = 256
+ 02D3 A780                    STA     0,X+        
+ 02D5 86F7                    LDA     #$F7        SET CRC CODE
+ 02D7 A780                    STA     0,X+        
+ 02D9 7D0027                  TST     >DNSITY     DOUBLE DENSITY ?
+ 02DC 2607                    BNE     DOSE6       SKIP IF SO
+ 02DE 300B                    LEAX    11,X        LEAVE $FF'S
+ 02E0 4F                      CLRA                PUT IN 6 ZEROS
+ 02E1 C606                    LDB     #6          
+ 02E3 200C                    BRA     DOSE7
+ 02E5 308816          DOSE6   LEAX    22,X        LEAVE $4E'S L0289
+ 02E8 4F                      CLRA                PUT IN 12 ZEROS
+ 02E9 C60C                    LDB     #$0C        
+ 02EB 8D8F                    BSR     SET         
+ 02ED 86F5                    LDA     #$F5        PUT IN 3 $F5'S
+ 02EF C603                    LDB     #3          
+ 02F1 8D89            DOSE7   BSR     SET         L0295
+ 02F3 86FB                    LDA     #$FB        DATA ADRESS MARK
+ 02F5 A780                    STA     0,X+        
+ 02F7 3506                    PULS    A,B         RESTORE FORWARD LINK
+ 02F9 ED81                    STD     0,X++       PUT IN SECTOR BUFFER
+ 02FB 4F                      CLRA                
+ 02FC C6FE                    LDB     #$FE        
+ 02FE 17FF7B                  LBSR    SET         
+ 0301 86F7                    LDA     #$F7        SET CRC CODE
+ 0303 A780                    STA     0,X+        
+ 0305 300C                    LEAX    12,X        LEAVE GAP (10)
+ 0307 7D0027                  TST     >DNSITY     DOUBLE DENSITY ?
+ 030A 2702                    BEQ     DOSECA      SKIP IF NOT
+ 030C 300C                    LEAX    12,X        DD NEEDS MORE GAPS
+ 030E 39              DOSECA  RTS
 
 
                       * DISK TESTING AND TABLE SETUP
 
                       * READ ALL SETORS FOR ERRORS
 
- 0308 F60032          SETUP   LDB     >MAX
- 030B B60033                  LDA     >TRACKS
- 030E 4A                      DECA
- 030F FD002E                  STD     >LSTAVL     SET LAST AVAIL.
- 0312 3D                      MUL                 FIND TOTAL SECTORS
- 0313 FD002A                  STD     >SECCNT     SAVE IT
- 0316 8E0101                  LDX     #FIRST      SET FIRST AVAIL
- 0319 BF002C                  STX     >FSTAVL     
- 031C B60023                  LDA     >DRN        
- 031F B70803                  STA     WORK+3      
- 0322 4F                      CLRA                CLEAR COUNTER
- 0323 B70022                  STA     >BADCNT     
- 0326 B70020                  STA     >TRACK      SET TRACK
- 0329 B70027                  STA     >DNSITY     SINGLE DENSITY FOR TRACK 0
- 032C 4C                      INCA                
- 032D B70021                  STA     >SECTOR     SET SECTOR
- 0330 860A                    LDA     #SMAX0      RESET MAXIMUM
- 0332 B70030                  STA     >MAXS0      SECTOR COUNTS
- 0335 8614                    LDA     #SMAXS1     
- 0337 B70031                  STA     >MAXS1      
- 033A 7D0025                  TST     >DBSDF      DOUBLE SIDED ?
- 033D 2602                    BNE     SETUP1      SKIP IF SO
- 033F 860A                    LDA     #SMAX0      
- 0341 B70032          SETUP1  STA     >MAX        MAXIMUM SECTORS
- 0344 8D2B            SETUP2  BSR     CHKSEC      GO CHECK SECTORS
- 0346 2660                    BNE     REMSEC      ERROR ?
- 0348 7F0022                  CLR     >BADCNT     CLEAR COUNTER
- 034B FC0020          SETUP4  LDD     >TRACK      GET TRACK AND SECTOR
- 034E 8D4A                    BSR     FIXSEC      GET TO NEXT ADR
- 0350 102700E1                LBEQ    DOTRK       SKIP IF FINISHED
+ 030F F60032          SETUP   LDB     >MAX
+ 0312 B60033                  LDA     >TRACKS
+ 0315 4A                      DECA
+ 0316 FD002E                  STD     >LSTAVL     SET LAST AVAIL.
+ 0319 3D                      MUL                 FIND TOTAL SECTORS
+ 031A FD002A                  STD     >SECCNT     SAVE IT
+ 031D 8E0101                  LDX     #FIRST      SET FIRST AVAIL
+ 0320 BF002C                  STX     >FSTAVL     
+ 0323 B60023                  LDA     >DRN        
+ 0326 B70803                  STA     WORK+3      
+ 0329 4F                      CLRA                CLEAR COUNTER
+ 032A B70022                  STA     >BADCNT     
+ 032D B70020                  STA     >TRACK      SET TRACK
+ 0330 B70027                  STA     >DNSITY     SINGLE DENSITY FOR TRACK 0
+ 0333 4C                      INCA                
+ 0334 B70021                  STA     >SECTOR     SET SECTOR
+ 0337 860A                    LDA     #SMAX0      RESET MAXIMUM
+ 0339 B70030                  STA     >MAXS0      SECTOR COUNTS
+ 033C 8614                    LDA     #SMAXS1     
+ 033E B70031                  STA     >MAXS1      
+ 0341 7D0025                  TST     >DBSDF      DOUBLE SIDED ?
+ 0344 2602                    BNE     SETUP1      SKIP IF SO
+ 0346 860A                    LDA     #SMAX0      
+ 0348 B70032          SETUP1  STA     >MAX        MAXIMUM SECTORS
+ 034B 8D2B            SETUP2  BSR     CHKSEC      GO CHECK SECTORS
+ 034D 2660                    BNE     REMSEC      ERROR ?
+ 034F 7F0022                  CLR     >BADCNT     CLEAR COUNTER
+ 0352 FC0020          SETUP4  LDD     >TRACK      GET TRACK AND SECTOR
+ 0355 8D4A                    BSR     FIXSEC      GET TO NEXT ADR
+ 0357 102700E7                LBEQ    DOTRK       SKIP IF FINISHED
                               *
- 0354 3416                    PSHS    D,X                     DISPLAY TRACK 
-SECTOR
- 0356 8608                    LDA             #$08            BACKSPACE
- 0358 BDCD18                  JSR             PUTCHR
- 035B BDCD18                  JSR             PUTCHR
- 035E BDCD18                  JSR             PUTCHR
- 0361 BDCD18                  JSR             PUTCHR
- 0364 8E0020                  LDX             #TRACK
- 0367 BDCD45                  JSR     OUTADR
- 036A 3516                    PULS    D,X
+ 035B 3416                    PSHS    D,X         DISPLAY TRACK SECTOR
+ 035D 8608                    LDA     #$08        BACKSPACE
+ 035F BDCD18                  JSR     PUTCHR
+ 0362 BDCD18                  JSR     PUTCHR
+ 0365 BDCD18                  JSR     PUTCHR
+ 0368 BDCD18                  JSR     PUTCHR
+ 036B 8E0020                  LDX     #TRACK
+ 036E BDCD45                  JSR     OUTADR
+ 0371 3516                    PULS    D,X
                               *
- 036C FD0020                  STD     >TRACK      SET TRACK AND SECTOR
- 036F 20D3                    BRA     SETUP2      REPEAT
- 0371 8E0800          CHKSEC  LDX     #WORK       POINT TO FCB
- 0374 FC0020                  LDD     >TRACK      GET TRACK AND SECTOR
- 0377 ED881E                  STD     30,X        SET CURRENT TRACK AND SECTOR
- 037A 7E041E                  JMP     READSS      GO DO READ
+ 0373 FD0020                  STD     >TRACK      SET TRACK AND SECTOR
+ 0376 20D3                    BRA     SETUP2      REPEAT
+ 0378 8E0800          CHKSEC  LDX     #WORK       POINT TO FCB
+ 037B FC0020                  LDD     >TRACK      GET TRACK AND SECTOR
+ 037E ED881E                  STD     30,X        SET CURRENT TRACK AND SECTOR
+ 0381 7E042B                  JMP     READSS      GO DO READ
 
                       * CHANGE TO DD IF REQUIRED
 
- 037D F60026          SWITCH  LDB     >DENSE      DOUBLE DENSITY DISK ?
- 0380 2717                    BEQ     SWICH2      SKIP IF NOT
- 0382 F70027                  STB     >DNSITY     SET FLAG
- 0385 C612                    LDB     #DMAXS0     RESET SECTOR COUNTS
- 0387 F70030                  STB     >MAXS0      
- 038A C624                    LDB     #DMAXS1     
- 038C F70031                  STB     >MAXS1      
- 038F 7D0025                  TST     >DBSDF      TEST DOUBLE SIDED
- 0392 2602                    BNE     SWICH1      SKIP IF SO
- 0394 C612                    LDB     #DMAXS0
- 0396 F70032          SWICH1  STB     >MAX
- 0399 39              SWICH2  RTS
+ 0384 F60026          SWITCH  LDB     >DENSE      DOUBLE DENSITY DISK ?
+ 0387 2717                    BEQ     SWICH2      SKIP IF NOT
+ 0389 F70027                  STB     >DNSITY     SET FLAG
+ 038C C612                    LDB     #DMAXS0     RESET SECTOR COUNTS
+ 038E F70030                  STB     >MAXS0      
+ 0391 C624                    LDB     #DMAXS1     
+ 0393 F70031                  STB     >MAXS1      
+ 0396 7D0025                  TST     >DBSDF      TEST DOUBLE SIDED
+ 0399 2602                    BNE     SWICH1      SKIP IF SO
+ 039B C612                    LDB     #DMAXS0
+ 039D F70032          SWICH1  STB     >MAX
+ 03A0 39              SWICH2  RTS
 
                       * SET TRACK AND SECTOR TO NEXT 
 
- 039A F10032          FIXSEC  CMPB    >MAX        END OF TRACK?
- 039D 2604                    BNE     FEXSE4      
- 039F 4C                      INCA                BUMP TRACK
- 03A0 8DDB                    BSR     SWITCH      SWITCH TO DD IF NCSSRY
- 03A2 5F                      CLRB                SECTOR NO.
- 03A3 5C              FEXSE4  INCB                SECTOR NO.
- 03A4 B10033                  CMPA    >TRACKS     END OF DISK ?
- 03A7 39                      RTS
+ 03A1 F10032          FIXSEC  CMPB    >MAX        END OF TRACK?
+ 03A4 2604                    BNE     FEXSE4      
+ 03A6 4C                      INCA                BUMP TRACK
+ 03A7 8DDB                    BSR     SWITCH      SWITCH TO DD IF NCSSRY
+ 03A9 5F                      CLRB                SECTOR NO.
+ 03AA 5C              FEXSE4  INCB                SECTOR NO.
+ 03AB B10033                  CMPA    >TRACKS     END OF DISK ?
+ 03AE 39                      RTS
 
                       * REMOVE BAD SECTOR FROM FREE CHAIN
 
- 03A8 7C0022          REMSEC  INC     >BADCNT     UPDATE COUNTER
- 03AB 270C                    BEQ     REMSE1      COUNT OVERFLOW?
- 03AD B60020                  LDA     >TRACK      GET TRACK
- 03B0 260D                    BNE     REMSE2      TRACK 0 ?
- 03B2 F60021                  LDB     >SECTOR     GET SECTOR
- 03B5 C105                    CMPB    #5          PAST DIRECTORY ?
- 03B7 2206                    BHI     REMSE2       
- 03B9 8E0573          REMSE1  LDX     #FATERS     REPORT FATAL ERROR L032D
- 03BC 7E01C8                  JMP     EXIT2       REPORT IT
- 03BF 8E0800          REMSE2  LDX     #WORK       POINT TO FCB L0333
- 03C2 FC002C                  LDD     >FSTAVL     GET OUTIN TRACK AND SECTOR
- 03C5 10B30020                CMPD    >TRACK      CHECK TRACK AND SECTOR
- 03C9 2607                    BNE     REMSE3       
- 03CB 8DCD                    BSR     FIXSEC      SET TO NEXT
- 03CD FD002C                  STD     >FSTAVL     GO DO NEXT
- 03D0 202B                    BRA     REMSE7      SET NEW ADR
- 03D2 FC0020          REMSE3  LDD     >TRACK      GET TRACK AND SECTOR L0343
- 03D5 F00022                  SUBB    >BADCNT     
- 03D8 2702                    BEQ     REMSE4      UNDERFLOW ?
- 03DA 2A04                    BPL     REMSE5       
- 03DC 4A              REMSE4  DECA                TRACK L034B
- 03DD F60032                  LDB     >MAX        RESET SECTOR
- 03E0 ED881E          REMSE5  STD     30,X        SET CURRENT AD L034E
- 03E3 8D39                    BSR     READSS      GO DO READ
- 03E5 26D2                    BNE     REMSE1      ERROR ?
- 03E7 EC8840                  LDD     64,X        SET LINK ADR
- 03EA 8DAE                    BSR     FIXSEC      POINT TO NEXT
- 03EC 2608                    BNE     REMSE6      OVERFLOW ?
- 03EE EC881E                  LDD     30,X        GET CURRENT ADR
- 03F1 FD002E                  STD     >LSTAVL     SET NEW LAST AVAIL
- 03F4 4F                      CLRA                
- 03F5 5F                      CLRB                
- 03F6 ED8840          REMSE6  STD     64,X        SET NEW LINK L0363
- 03F9 8D2D                    BSR     WRITSS      GO DO WRITE
- 03FB 26BC                    BNE     REMSE1      ERROR?
- 03FD BE002A          REMSE7  LDX     >SECCNT     GET SEC COUNT L036A
- 0400 301F                    LEAX    -1,X        DEC IT ONCE
- 0402 BF002A                  STX     >SECCNT     SAVE NEW COUNT
- 0405 8E059D                  LDX     #DABSS      REPORT BAD SECTOR
- 0408 BDCD1E                  JSR     PSTRNG      OUTPUT IT
- 040B 8E0020                  LDX     #TRACK      POINT TO ADDRESS
- 040E BDCD3C                  JSR     OUTHEX      OUTPUT IT
- 0411 8620                    LDA     #$20        
- 0413 BDCD18                  JSR     PUTCHR      
- 0416 3001                    LEAX    1,X         BUMP TO NEXT
- 0418 BDCD3C                  JSR     OUTHEX      
- 041B 7E034B                  JMP     SETUP4      CONTINUE
+ 03AF 7C0022          REMSEC  INC     >BADCNT     UPDATE COUNTER
+ 03B2 270C                    BEQ     REMSE1      COUNT OVERFLOW?
+ 03B4 B60020                  LDA     >TRACK      GET TRACK
+ 03B7 260D                    BNE     REMSE2      TRACK 0 ?
+ 03B9 F60021                  LDB     >SECTOR     GET SECTOR
+ 03BC C105                    CMPB    #5          PAST DIRECTORY ?
+ 03BE 2206                    BHI     REMSE2       
+ 03C0 8E0580          REMSE1  LDX     #FATERS     REPORT FATAL ERROR L032D
+ 03C3 7E01CC                  JMP     EXIT2       REPORT IT
+ 03C6 8E0800          REMSE2  LDX     #WORK       POINT TO FCB L0333
+ 03C9 FC002C                  LDD     >FSTAVL     GET OUTIN TRACK AND SECTOR
+ 03CC 10B30020                CMPD    >TRACK      CHECK TRACK AND SECTOR
+ 03D0 2607                    BNE     REMSE3       
+ 03D2 8DCD                    BSR     FIXSEC      SET TO NEXT
+ 03D4 FD002C                  STD     >FSTAVL     GO DO NEXT
+ 03D7 202B                    BRA     REMSE7      SET NEW ADR
+ 03D9 FC0020          REMSE3  LDD     >TRACK      GET TRACK AND SECTOR L0343
+ 03DC F00022                  SUBB    >BADCNT     
+ 03DF 2702                    BEQ     REMSE4      UNDERFLOW ?
+ 03E1 2A04                    BPL     REMSE5       
+ 03E3 4A              REMSE4  DECA                TRACK L034B
+ 03E4 F60032                  LDB     >MAX        RESET SECTOR
+ 03E7 ED881E          REMSE5  STD     30,X        SET CURRENT AD L034E
+ 03EA 8D3F                    BSR     READSS      GO DO READ
+ 03EC 26D2                    BNE     REMSE1      ERROR ?
+ 03EE EC8840                  LDD     64,X        SET LINK ADR
+ 03F1 8DAE                    BSR     FIXSEC      POINT TO NEXT
+ 03F3 2608                    BNE     REMSE6      OVERFLOW ?
+ 03F5 EC881E                  LDD     30,X        GET CURRENT ADR
+ 03F8 FD002E                  STD     >LSTAVL     SET NEW LAST AVAIL
+ 03FB 4F                      CLRA                
+ 03FC 5F                      CLRB                
+ 03FD ED8840          REMSE6  STD     64,X        SET NEW LINK L0363
+ 0400 8D33                    BSR     WRITSS      GO DO WRITE
+ 0402 26BC                    BNE     REMSE1      ERROR?
+ 0404 BE002A          REMSE7  LDX     >SECCNT     GET SEC COUNT L036A
+ 0407 301F                    LEAX    -1,X        DEC IT ONCE
+ 0409 BF002A                  STX     >SECCNT     SAVE NEW COUNT
+ 040C 8E05AA                  LDX     #DABSS      REPORT BAD SECTOR
+ 040F BDCD1E                  JSR     PSTRNG      OUTPUT IT
+ 0412 8E0020                  LDX     #TRACK      POINT TO ADDRESS
+ 0415 BDCD3C                  JSR     OUTHEX      OUTPUT IT
+                              *
+ 0418 8E0651                  LDX             #VRYTRK         DISPLAY NORMAL 
+VERIFY MESSAGE
+ 041B BDCD1E                  JSR             PSTRNG          OUTPUT IT
+                              *
+ 041E 8620                    LDA     #$20        
+ 0420 BDCD18                  JSR     PUTCHR      
+ 0423 3001                    LEAX    1,X         BUMP TO NEXT
+ 0425 BDCD3C                  JSR     OUTHEX      
+ 0428 7E0352                  JMP     SETUP4      CONTINUE
 
                       *READ A SECTOR
 
- 041E 8E0800          READSS  LDX     #WORK       POINT TO FCB
- 0421 8609                    LDA     #9          SET UP COMMAND
- 0423 A700                    STA     0,X         
- 0425 7ED406                  JMP     FMS         GO DO IT
+ 042B 8E0800          READSS  LDX     #WORK       POINT TO FCB
+ 042E 8609                    LDA     #9          SET UP COMMAND
+ 0430 A700                    STA     0,X         
+ 0432 7ED406                  JMP     FMS         GO DO IT
                                                   
                       *WRITE A SECTOR             
                                                   
- 0428 8E0800          WRITSS  LDX     #WORK       POINT TO FCB
- 042B 860A                    LDA     #SMAX0      SETUP COMMAND
- 042D A700                    STA     0,X         
- 042F BDD406                  JSR     FMS         GO DO IT
- 0432 27EA                    BEQ     READSS      ERRORS ?
- 0434 39                      RTS
+ 0435 8E0800          WRITSS  LDX     #WORK       POINT TO FCB
+ 0438 860A                    LDA     #SMAX0      SETUP COMMAND
+ 043A A700                    STA     0,X         
+ 043C BDD406                  JSR     FMS         GO DO IT
+ 043F 27EA                    BEQ     READSS      ERRORS ?
+ 0441 39                      RTS
 
                       *SETUP SIR
 
- 0435 7F0027          DOTRK   CLR     >DNSITY     BACK TO SINGLE DENSITY
- 0438 8E0800                  LDX     #WORK       POINT TO SPACE
- 043B 6F881E                  CLR     30,X        SET TO DIS
- 043E 8603                    LDA     #3          SECTOR 3
- 0440 A7881F                  STA     31,X        
- 0443 8DD9                    BSR     READSS      READ IN SIR SECTOR
- 0445 2650                    BNE     DOTRK3      ERRORS ?
- 0447 8E0800                  LDX     #WORK       FIX POINTER
- 044A 6F8840                  CLR     64,X        CLEAR FORWARD LINK
- 044D 6F8841                  CLR     65,X        
- 0450 FC002C                  LDD     >FSTAVL     ADDR OF OUTIN FREE SECTOR
- 0453 ED885D                  STD     93,X        SET IN SIR (93)
- 0456 FC002E                  LDD     >LSTAVL     ADDR OF LAST FREE SECTOR
- 0459 ED885F                  STD     95,X        SET IN SIR
- 045C FC002A                  LDD     >SECCNT     GET TOTAL SECTOR COUNT
- 045F ED8861                  STD     97,X        PUT IN SIR
- 0462 B60033                  LDA     >TRACKS     GET MAX TRACK NO
- 0465 4A                      DECA                
- 0466 F60030                  LDB     >MAXS0      
- 0469 7D0025                  TST     >DBSDF      DOUBLE SIDED ?
- 046C 2703                    BEQ     DOTRK1
- 046E F60031                  LDB     >MAXS1      CHANGE FOR DOUBLE SIDED
- 0471 ED8866          DOTRK1  STD     102,X       SAVE MAX TRACK AND SECTOR 
+ 0442 7F0027          DOTRK   CLR     >DNSITY     BACK TO SINGLE DENSITY
+ 0445 8E0800                  LDX     #WORK       POINT TO SPACE
+ 0448 6F881E                  CLR     30,X        SET TO DIS
+ 044B 8603                    LDA     #3          SECTOR 3
+ 044D A7881F                  STA     31,X        
+ 0450 8DD9                    BSR     READSS      READ IN SIR SECTOR
+ 0452 2650                    BNE     DOTRK3      ERRORS ?
+ 0454 8E0800                  LDX     #WORK       FIX POINTER
+ 0457 6F8840                  CLR     64,X        CLEAR FORWARD LINK
+ 045A 6F8841                  CLR     65,X        
+ 045D FC002C                  LDD     >FSTAVL     ADDR OF OUTIN FREE SECTOR
+ 0460 ED885D                  STD     93,X        SET IN SIR (93)
+ 0463 FC002E                  LDD     >LSTAVL     ADDR OF LAST FREE SECTOR
+ 0466 ED885F                  STD     95,X        SET IN SIR
+ 0469 FC002A                  LDD     >SECCNT     GET TOTAL SECTOR COUNT
+ 046C ED8861                  STD     97,X        PUT IN SIR
+ 046F B60033                  LDA     >TRACKS     GET MAX TRACK NO
+ 0472 4A                      DECA                
+ 0473 F60030                  LDB     >MAXS0      
+ 0476 7D0025                  TST     >DBSDF      DOUBLE SIDED ?
+ 0479 2703                    BEQ     DOTRK1
+ 047B F60031                  LDB     >MAXS1      CHANGE FOR DOUBLE SIDED
+ 047E ED8866          DOTRK1  STD     102,X       SAVE MAX TRACK AND SECTOR 
 L03D4
- 0474 FCCC0E                  LDD     >SYSMTH     MONTH INTO SIR
- 0477 ED8863                  STD     99,X        
- 047A B6CC10                  LDA     >SYSYR      SET YEAR INTO SIR
- 047D A78865                  STA     101,X       
- 0480 C60D                    LDB     #$0D        
- 0482 108E0038                LDY     #VOLNAM     POINT TO VOLUME NAME
- 0486 8E0800                  LDX     #WORK       
- 0489 A6A0            DOTRK2  LDA     0,Y+        COPY NAME TO SIR L03EC
- 048B A78850                  STA     80,X        
- 048E 3001                    LEAX    1,X         
- 0490 5A                      DECB                DEC THE COUNT
- 0491 26F6                    BNE     DOTRK2       
- 0493 8D93                    BSR     WRITSS      WRITE SIR BACK OUT
- 0495 2703                    BEQ     DIRINT      SKIP IF NO ERROR
- 0497 7E03B9          DOTRK3  JMP     REMSE1      GO REPORT ERROR L03FA
+ 0481 FCCC0E                  LDD     >SYSMTH     MONTH INTO SIR
+ 0484 ED8863                  STD     99,X        
+ 0487 B6CC10                  LDA     >SYSYR      SET YEAR INTO SIR
+ 048A A78865                  STA     101,X       
+ 048D C60D                    LDB     #$0D        
+ 048F 108E0038                LDY     #VOLNAM     POINT TO VOLUME NAME
+ 0493 8E0800                  LDX     #WORK       
+ 0496 A6A0            DOTRK2  LDA     0,Y+        COPY NAME TO SIR L03EC
+ 0498 A78850                  STA     80,X        
+ 049B 3001                    LEAX    1,X         
+ 049D 5A                      DECB                DEC THE COUNT
+ 049E 26F6                    BNE     DOTRK2       
+ 04A0 8D93                    BSR     WRITSS      WRITE SIR BACK OUT
+ 04A2 2703                    BEQ     DIRINT      SKIP IF NO ERROR
+ 04A4 7E03C0          DOTRK3  JMP     REMSE1      GO REPORT ERROR L03FA
 
                       * INITIALISE DIRECTORY
 
- 049A 8E0800          DIRINT  LDX     #WORK       SET POINTER TO FCB
- 049D 860A                    LDA     #SMAX0      GET MAX FOR TRACK 0
- 049F 7D0025                  TST     >DBSDF       SINGLE SIDED ?
- 04A2 2702                    BEQ     DIRIN1      SKIP IF SO
- 04A4 8614                    LDA     #SMAXS1     SET MAX FOR DS
- 04A6 A7881F          DIRIN1  STA     31,X        SET UP L0408
- 04A9 BD041E                  JSR     READSS      READ IN SECTOR
- 04AC 26E9                    BNE     DOTRK3      ERRORS ?
- 04AE 8E0800                  LDX     #WORK       RESTORE POINTER
- 04B1 6F8840                  CLR     64,X        CLEAR LINK
- 04B4 6F8841                  CLR     65,X        
- 04B7 BD0428                  JSR     WRITSS      WRITE BACK OUT
- 04BA 26DB                    BNE     DOTRK3      ERRORS ?
- 04BC 8EC100                  LDX     #CMDADR
- 04BF 4F                      CLRA                TRACK 0
- 04C0 C601                    LDB     #1          SECTOR 1
- 04C2 BDDE03                  JSR     DWRITE      WRITE THE SECTOR
- 04C5 26D0                    BNE     DOTRK3      ERRORS ?
+ 04A7 8E0800          DIRINT  LDX     #WORK       SET POINTER TO FCB
+ 04AA 860A                    LDA     #SMAX0      GET MAX FOR TRACK 0
+ 04AC 7D0025                  TST     >DBSDF       SINGLE SIDED ?
+ 04AF 2702                    BEQ     DIRIN1      SKIP IF SO
+ 04B1 8614                    LDA     #SMAXS1     SET MAX FOR DS
+ 04B3 A7881F          DIRIN1  STA     31,X        SET UP L0408
+ 04B6 BD042B                  JSR     READSS      READ IN SECTOR
+ 04B9 26E9                    BNE     DOTRK3      ERRORS ?
+ 04BB 8E0800                  LDX     #WORK       RESTORE POINTER
+ 04BE 6F8840                  CLR     64,X        CLEAR LINK
+ 04C1 6F8841                  CLR     65,X        
+ 04C4 BD0435                  JSR     WRITSS      WRITE BACK OUT
+ 04C7 26DB                    BNE     DOTRK3      ERRORS ?
+ 04C9 8EC100                  LDX     #CMDADR
+ 04CC 4F                      CLRA                TRACK 0
+ 04CD C601                    LDB     #1          SECTOR 1
+ 04CF BDDE03                  JSR     DWRITE      WRITE THE SECTOR
+ 04D2 26D0                    BNE     DOTRK3      ERRORS ?
                               
                       * SAVE BOOT IN TRACK 0 SECTOR 1
 
- 04C7 8EC100          DOBOOT  LDX     #CMDADR
- 04CA 4F                      CLRA                            TRACK #0
- 04CB C601                    LDB     #$01            SECTOR #1
- 04CD BDDE03                  JSR     DWRITE          WRITE THE SECTOR
- 04D0 26C5                    BNE     DOTRK3          ERRORS ?
+ 04D4 8EC100          DOBOOT  LDX     #CMDADR
+ 04D7 4F                      CLRA                TRACK #0
+ 04D8 C601                    LDB     #$01        SECTOR #1
+ 04DA BDDE03                  JSR     DWRITE      WRITE THE SECTOR
+ 04DD 26C5                    BNE     DOTRK3      ERRORS ?
 
                       *REPORT TOTAL SECTORS AND EXIT
 
- 04D2 8E0800                  LDX     #WORK       SET UP AN FCB
- 04D5 8610                    LDA     #$10        OPEN SIR FUNCTION
- 04D7 A700                    STA     0,X         
- 04D9 BDD406                  JSR     FMS         OPEN THE SIR
- 04DC 26B9                    BNE     DOTRK3      ERRORS ?
- 04DE 8607                    LDA     #7          INFO RECORD FUNCTION
- 04E0 A700                    STA     0,X         
- 04E2 BDD406                  JSR     FMS         OUTIN INFO RECORD
- 04E5 26B0                    BNE     DOTRK3      REPORT FORMATTING COMPLETE
- 04E7 8E05AD                  LDX     #CMPLTE     REPORT FORMATTING COMPLETE
- 04EA BDCD24                  JSR             PCRLF
- 04ED BDCD1E                  JSR     PSTRNG      OUTPUT IT
- 04F0 8E05C3                  LDX     #SECST      PRINT TOTAL SECTOR STRING
- 04F3 BDCD1E                  JSR     PSTRNG      OUTPUT IT
- 04F6 8E0815                  LDX     #L0815      TOTAL IS IN INFO RECORD
- 04F9 5F                      CLRB                
- 04FA BDCD39                  JSR     OUTDEC      PRINT NUMBER
- 04FD 7E01CB                  JMP     EXIT3       ALL DONE - GO TO EXIT
+ 04DF 8E0800                  LDX     #WORK       SET UP AN FCB
+ 04E2 8610                    LDA     #$10        OPEN SIR FUNCTION
+ 04E4 A700                    STA     0,X         
+ 04E6 BDD406                  JSR     FMS         OPEN THE SIR
+ 04E9 26B9                    BNE     DOTRK3      ERRORS ?
+ 04EB 8607                    LDA     #7          INFO RECORD FUNCTION
+ 04ED A700                    STA     0,X         
+ 04EF BDD406                  JSR     FMS         OUTIN INFO RECORD
+ 04F2 26B0                    BNE     DOTRK3      REPORT FORMATTING COMPLETE
+ 04F4 8E05BA                  LDX     #CMPLTE     REPORT FORMATTING COMPLETE
+ 04F7 BDCD24                  JSR     PCRLF
+ 04FA BDCD1E                  JSR     PSTRNG      OUTPUT IT
+ 04FD 8E05D0                  LDX     #SECST      PRINT TOTAL SECTOR STRING
+ 0500 BDCD1E                  JSR     PSTRNG      OUTPUT IT
+ 0503 8E0815                  LDX     #L0815      TOTAL IS IN INFO RECORD
+ 0506 5F                      CLRB                
+ 0507 BDCD39                  JSR     OUTDEC      PRINT NUMBER
+ 050A 7E01CF                  JMP     EXIT3       ALL DONE - GO TO EXIT
 
                       *SECTOR MAPS
 
- 0500 01030507090204  SSCMAP  FCB     $01,$03,$05,$07,$09,$02,$04,$06
- 0507 06
- 0508 080A                    FCB     $08,$0A
- 050A 0B0D0F11130C0E          FCB     11,13,15,17,19,12,14,16,18,20
- 0511 101214
- 0514 01030507090B0D  DSCMAP  FCB     $01,$03,$05,$07,$09,$0B,$0D,$0F
- 051B 0F
- 051C 11020406080A0C          FCB     $11,$02,$04,$06,$08,$0A,$0C,$0E
- 0523 0E
- 0524 1012                    FCB     $10,$12
- 0526 131517191B1D1F          FCB     19,21,23,25,27,29,31,33,35,20,22,24,26,28,
+ 050D 01030507090204  SSCMAP  FCB     $01,$03,$05,$07,$09,$02,$04,$06
+ 0514 06
+ 0515 080A                    FCB     $08,$0A
+ 0517 0B0D0F11130C0E          FCB     11,13,15,17,19,12,14,16,18,20
+ 051E 101214
+ 0521 01030507090B0D  DSCMAP  FCB     $01,$03,$05,$07,$09,$0B,$0D,$0F
+ 0528 0F
+ 0529 11020406080A0C          FCB     $11,$02,$04,$06,$08,$0A,$0C,$0E
+ 0530 0E
+ 0531 1012                    FCB     $10,$12
+ 0533 131517191B1D1F          FCB     19,21,23,25,27,29,31,33,35,20,22,24,26,28,
 30,32,34,36
- 052D 21231416181A1C
- 0534 1E202224
+ 053A 21231416181A1C
+ 0541 1E202224
 
                       * DISPLAYED MESSAGES
 
- 0538 41726520796F75  SURES   FCC     "Are you sure ? "
- 053F 2073757265203F
- 0546 20
- 0547 04                      FCB     EOT
- 0548 4469736B206973  WPST    FCC     "Disk is protected !"
- 054F 2070726F746563
- 0556 7465642021
- 055B 04                      FCB     EOT
- 055C 53637261746368  SCRDS   FCC     "Scratch disk in drive "
- 0563 206469736B2069
- 056A 6E206472697665
- 0571 20
- 0572 04                      FCB     EOT
- 0573 070707          FATERS  FCB     BEL,BEL,BEL
- 0576 466174616C2065          FCC     "Fatal error "
- 057D 72726F7220
- 0582 2D2D2D20                FCC     "--- "
- 0586 04                      FCB     EOT
- 0587 466F726D617474  ABORTS  FCC     "Formatting aborted ! "
- 058E 696E672061626F
- 0595 72746564202120
- 059C 04                      FCB     EOT
- 059D 07              DABSS   FCB     BEL
- 059E 42616420736563          FCC     "Bad sector at "
- 05A5 746F7220617420
- 05AC 04                      FCB     EOT
- 05AD 07              CMPLTE  FCB     BEL
- 05AE 466F726D617474          FCC     "Formatting complete."
- 05B5 696E6720636F6D
- 05BC 706C6574652E
- 05C2 04                      FCB     EOT
- 05C3 546F74616C2073  SECST   FCC     "Total sectors = "
- 05CA 6563746F727320
- 05D1 3D20
- 05D3 04                      FCB     EOT
- 05D4 446F75626C6520  DDSTR   FCC     "Double density disk ? "
- 05DB 64656E73697479
- 05E2 206469736B203F
- 05E9 20
- 05EA 04                      FCB     EOT
- 05EB 446F75626C6520  DBST    FCC     "Double sided disk ? "
- 05F2 73696465642064
- 05F9 69736B203F20
- 05FF 04                      FCB     EOT
- 0600 38302074726163  DTSTR   FCC     "80 tracks drive ? "
- 0607 6B732064726976
- 060E 65203F20
- 0612 04                      FCB     EOT
- 0613 566F6C756D6520  MNSTR   FCC     "Volume name ? "
- 061A 6E616D65203F20
- 0621 04                      FCB     EOT
- 0622 566F6C756D6520  NUMSTR  FCC     "Volume number ? "
- 0629 6E756D62657220
- 0630 3F20
- 0632 04                      FCB     EOT
- 0633 57726974652074  INITRK  FCC             "Write track :   "
- 063A 7261636B203A20
- 0641 2020
- 0643 04                              FCB             EOT
- 0644 56657269667920  VRYTRK  FCC             "Verify track/sector :     "
- 064B 747261636B2F73
- 0652 6563746F72203A
- 0659 2020202020
- 065E 04                              FCB             EOT
+ 0545 41726520796F75  SURES   FCC     "Are you sure ? "
+ 054C 2073757265203F
+ 0553 20
+ 0554 04                      FCB     EOT
+ 0555 4469736B206973  WPST    FCC     "Disk is protected !"
+ 055C 2070726F746563
+ 0563 7465642021
+ 0568 04                      FCB     EOT
+ 0569 53637261746368  SCRDS   FCC     "Scratch disk in drive "
+ 0570 206469736B2069
+ 0577 6E206472697665
+ 057E 20
+ 057F 04                      FCB     EOT
+ 0580 070707          FATERS  FCB     BEL,BEL,BEL
+ 0583 466174616C2065          FCC     "Fatal error "
+ 058A 72726F7220
+ 058F 2D2D2D20                FCC     "--- "
+ 0593 04                      FCB     EOT
+ 0594 466F726D617474  ABORTS  FCC     "Formatting aborted ! "
+ 059B 696E672061626F
+ 05A2 72746564202120
+ 05A9 04                      FCB     EOT
+ 05AA 07              DABSS   FCB     BEL
+ 05AB 42616420736563          FCC     "Bad sector at "
+ 05B2 746F7220617420
+ 05B9 04                      FCB     EOT
+ 05BA 07              CMPLTE  FCB     BEL
+ 05BB 466F726D617474          FCC     "Formatting complete."
+ 05C2 696E6720636F6D
+ 05C9 706C6574652E
+ 05CF 04                      FCB     EOT
+ 05D0 546F74616C2073  SECST   FCC     "Total sectors = "
+ 05D7 6563746F727320
+ 05DE 3D20
+ 05E0 04                      FCB     EOT
+ 05E1 446F75626C6520  DDSTR   FCC     "Double density disk ? "
+ 05E8 64656E73697479
+ 05EF 206469736B203F
+ 05F6 20
+ 05F7 04                      FCB     EOT
+ 05F8 446F75626C6520  DBST    FCC     "Double sided disk ? "
+ 05FF 73696465642064
+ 0606 69736B203F20
+ 060C 04                      FCB     EOT
+ 060D 38302074726163  DTSTR   FCC     "80 tracks drive ? "
+ 0614 6B732064726976
+ 061B 65203F20
+ 061F 04                      FCB     EOT
+ 0620 566F6C756D6520  MNSTR   FCC     "Volume name ? "
+ 0627 6E616D65203F20
+ 062E 04                      FCB     EOT
+ 062F 566F6C756D6520  NUMSTR  FCC     "Volume number ? "
+ 0636 6E756D62657220
+ 063D 3F20
+ 063F 04                      FCB     EOT
+ 0640 57726974652074  INITRK  FCC     "Write track :   "
+ 0647 7261636B203A20
+ 064E 2020
+ 0650 04                      FCB     EOT
+ 0651 56657269667920  VRYTRK  FCC     "Verify track/sector :     "
+ 0658 747261636B2F73
+ 065F 6563746F72203A
+ 0666 2020202020
+ 066B 04                      FCB     EOT
 
                       * TEMP1 = BUFFER END - CHANGE IF SD OR DD
 
- 065F                 TEMP1   RMB     2
+ 066C                 TEMP1   RMB     2
 
                       * WRITE TRACK ROUTINE
 
- 0661 3420            WTTRK   PSHS    Y
-                                      *
- 0663 8608                            LDA             #$08            DISPLAY 
-TRACK - LOAD BACKSPACE
- 0665 BDCD18                          JSR             PUTCHR
- 0668 BDCD18                          JSR             PUTCHR
- 066B 8E0020                          LDX             #TRACK
- 066E BDCD3C                          JSR             OUTHEX
-                                      *
- 0671 F60023                          LDB             >DRN
- 0674 86EC                    LDA     #$EC
- 0676 1E8B                    EXG     A,DP        SET DP TO $EC
- 0678 3402                    PSHS    A           SAVE OLD DP
- 067A 8EDE80                  LDX     #DSKTAB     LOAD DSKTAB ADDRESS
- 067D A604                    LDA     04,X        LOAD LATCH RAM COPY FROM 
+ 066E 3420            WTTRK   PSHS    Y
+                              *
+ 0670 8608                    LDA     #$08        DISPLAY TRACK - LOAD 
+BACKSPACE
+ 0672 BDCD18                  JSR     PUTCHR
+ 0675 BDCD18                  JSR     PUTCHR
+ 0678 8E0020                  LDX     #TRACK
+ 067B BDCD3C                  JSR     OUTHEX
+                              *
+ 067E F60023                  LDB     >DRN
+ 0681 86EC                    LDA     #$EC
+ 0683 1E8B                    EXG     A,DP        SET DP TO $EC
+ 0685 3402                    PSHS    A           SAVE OLD DP
+ 0687 8EDE80                  LDX     #DSKTAB     LOAD DSKTAB ADDRESS
+ 068A A604                    LDA     04,X        LOAD LATCH RAM COPY FROM 
 $DE80+4
- 067F 7D0027                  TST     >DNSITY     TEST SD DENSITY ?
- 0682 2714                    BEQ     WTTRK1      SKIP IF SD
- 0684 84BF                    ANDA    #%10111111  CLEAR DENSITY BIT -> DD
- 0686 970C                    STA     <DRVREG     STORE TO LATCH
- 0688 A704                    STA     $04,X       STORE TO LATCH RAM COPY
- 068A 3008                    LEAX    $08,X       COMPUTE DRIVE DENSITY TABLE 
+ 068C 7D0027                  TST     >DNSITY     TEST SD DENSITY ?
+ 068F 2714                    BEQ     WTTRK1      SKIP IF SD
+ 0691 84BF                    ANDA    #%10111111  CLEAR DENSITY BIT -> DD
+ 0693 970C                    STA     <DRVREG     STORE TO LATCH
+ 0695 A704                    STA     $04,X       STORE TO LATCH RAM COPY
+ 0697 3008                    LEAX    $08,X       COMPUTE DRIVE DENSITY TABLE 
 ADDRESS $DE80+8
- 068C 8601                    LDA     #$01      
- 068E A785                    STA     B,X         MARK DRIVE AS DD IN DISK 
+ 0699 8601                    LDA     #$01      
+ 069B A785                    STA     B,X         MARK DRIVE AS DD IN DISK 
 TABLE
-                      *                                               LDA    
-<DRVREG
- 0690 8E1FD4                  LDX     #DWKEND     END BUFFER ADDRESS DD
- 0693 BF065F                  STX     >TEMP1
- 0696 2011                    BRA     WTTRK2
- 0698 8A40            WTTRK1  ORA     #%01000000  SET DENSITY BIT -> SD L056B
- 069A 970C                    STA     <DRVREG     STORE TO LATCH
- 069C A704                    STA     $04,X       STORE TO LATCH RAM COPY
- 069E 3008                    LEAX    $08,X       COMPUTE DENSITY TABLE 
+                      *                           LDA    <DRVREG
+ 069D 8E1FD4                  LDX     #DWKEND     END BUFFER ADDRESS DD
+ 06A0 BF066C                  STX     >TEMP1
+ 06A3 2011                    BRA     WTTRK2
+ 06A5 8A40            WTTRK1  ORA     #%01000000  SET DENSITY BIT -> SD L056B
+ 06A7 970C                    STA     <DRVREG     STORE TO LATCH
+ 06A9 A704                    STA     $04,X       STORE TO LATCH RAM COPY
+ 06AB 3008                    LEAX    $08,X       COMPUTE DENSITY TABLE 
 ADDRESS
- 06A0 4F                      CLRA                
- 06A1 A785                    STA     B,X         MARK DRIVE AS SD IN DISK 
+ 06AD 4F                      CLRA                
+ 06AE A785                    STA     B,X         MARK DRIVE AS SD IN DISK 
 TABLE
-                      *                                               LDA    
-<DRVREG    
- 06A3 8E13EA                  LDX     #SWKEND     END BUFFER ADDRESS SD
- 06A6 BF065F                  STX     >TEMP1
- 06A9 86F4            WTTRK2  LDA     #$F4        LOAD WRITE TRACK COMMAND 
+                      *                           LDA    <DRVREG    
+ 06B0 8E13EA                  LDX     #SWKEND     END BUFFER ADDRESS SD
+ 06B3 BF066C                  STX     >TEMP1
+ 06B6 86F4            WTTRK2  LDA     #$F4        LOAD WRITE TRACK COMMAND 
 L0577
- 06AB 9704                    STA     <COMREG
- 06AD BD0705                  JSR     DELAY
- 06B0 C602                    LDB     #2          LOAD DRQ TEST VALUE
- 06B2 8E0800                  LDX     #WORK
- 06B5 A680            WTTRK3  LDA     0,X+        LOAD DATA FROM BUFFER
- 06B7 D504            WTTRK5  BITB    <COMREG     TEST DRQ ? L0583
- 06B9 27FC                    BEQ     WTTRK5      WAIT MORE IF NOT
- 06BB 9707                    STA     <DATREG     WRITE DATA
- 06BD BC065F                  CMPX    >TEMP1      COMPARE TO BUFFER END 
+ 06B8 9704                    STA     <COMREG
+ 06BA BD0712                  JSR     DELAY
+ 06BD C602                    LDB     #2          LOAD DRQ TEST VALUE
+ 06BF 8E0800                  LDX     #WORK
+ 06C2 A680            WTTRK3  LDA     0,X+        LOAD DATA FROM BUFFER
+ 06C4 D504            WTTRK5  BITB    <COMREG     TEST DRQ ? L0583
+ 06C6 27FC                    BEQ     WTTRK5      WAIT MORE IF NOT
+ 06C8 9707                    STA     <DATREG     WRITE DATA
+ 06CA BC066C                  CMPX    >TEMP1      COMPARE TO BUFFER END 
 ADDRESS
- 06C0 26F3                    BNE     WTTRK3      LOOP - MORE DATA TO WRITE
- 06C2 9604            WTTRK4  LDA     <COMREG     L0590
- 06C4 8501                    BITA    #1          TEST BUSY   
- 06C6 26FA                    BNE     WTTRK4      WAIT MORE IF BUSY
- 06C8 3502                    PULS    A
- 06CA 1E8B                    EXG     A,DP        RESTORE DP
- 06CC 35A0                    PULS    Y,PC
+ 06CD 26F3                    BNE     WTTRK3      LOOP - MORE DATA TO WRITE
+ 06CF 9604            WTTRK4  LDA     <COMREG     L0590
+ 06D1 8501                    BITA    #1          TEST BUSY   
+ 06D3 26FA                    BNE     WTTRK4      WAIT MORE IF BUSY
+ 06D5 3502                    PULS    A
+ 06D7 1E8B                    EXG     A,DP        RESTORE DP
+ 06D9 35A0                    PULS    Y,PC
                        
                       * DRIVE RESTORE SUBROUTINE
 
- 06CE 3452            RESTOR  PSHS    U,X,A
- 06D0 86EC                            LDA             #$EC
- 06D2 1E8B                            EXG             A,DP
- 06D4 3402                            PSHS    A                       SAVE OLD 
-DP
- 06D6 B60023                          LDA             >DRN            GET 
-DRIVE NUMBER
- 06D9 CEDE80                  LDU     #DSKTAB
- 06DC 8D1D                    BSR     WATFDC      CHECK FDC NOT BUSY 
- 06DE C600                    LDB     #$00        RESTORE COMMAND   
- 06E0 EA41                    ORB     $01,U       ADD STEP RATE
- 06E2 D704                    STB     <COMREG     SEND TO FDC
- 06E4 8D1F                    BSR     DELAY       WAIT
- 06E6 8D13                    BSR     WATFDC
- 06E8 D604                    LDB     <COMREG
- 06EA 6F42                    CLR     $02,U       CLEAR CURRENT TRACK
- 06EC 6F43                    CLR     $03,U       CLEAR CURRENT SECTOR
- 06EE 3045                    LEAX    $05,U
- 06F0 6F86                    CLR     A,X         CLEAR DRIVE TRACK MEMORY
- 06F2 C558                    BITB    #$58        CHECK FOR WP, SEEK AND CRC 
+ 06DB 3452            RESTOR  PSHS    U,X,A
+ 06DD 86EC                    LDA     #$EC
+ 06DF 1E8B                    EXG     A,DP
+ 06E1 3402                    PSHS    A           SAVE OLD DP
+ 06E3 B60023                  LDA     >DRN        GET DRIVE NUMBER
+ 06E6 CEDE80                  LDU     #DSKTAB
+ 06E9 8D1D                    BSR     WATFDC      CHECK FDC NOT BUSY 
+ 06EB C600                    LDB     #$00        RESTORE COMMAND   
+ 06ED EA41                    ORB     $01,U       ADD STEP RATE
+ 06EF D704                    STB     <COMREG     SEND TO FDC
+ 06F1 8D1F                    BSR     DELAY       WAIT
+ 06F3 8D13                    BSR     WATFDC
+ 06F5 D604                    LDB     <COMREG
+ 06F7 6F42                    CLR     $02,U       CLEAR CURRENT TRACK
+ 06F9 6F43                    CLR     $03,U       CLEAR CURRENT SECTOR
+ 06FB 3045                    LEAX    $05,U
+ 06FD 6F86                    CLR     A,X         CLEAR DRIVE TRACK MEMORY
+ 06FF C558                    BITB    #$58        CHECK FOR WP, SEEK AND CRC 
 ERROR
- 06F4 3502                    PULS    A
- 06F6 1E8B                    EXG             A,DP            RESTORE OLD DP
- 06F8 3552                    PULS    U,X,A
- 06FA 39                      RTS
+ 0701 3502                    PULS    A
+ 0703 1E8B                    EXG     A,DP        RESTORE OLD DP
+ 0705 3552                    PULS    U,X,A
+ 0707 39                      RTS
                                   
                       * WAIT FDC NOT BUSY
 
- 06FB 3404            WATFDC  PSHS    B      
- 06FD D604            ZF164   LDB     <COMREG   
- 06FF C401                    ANDB    #$01   
- 0701 26FA                    BNE     ZF164  
- 0703 3584                    PULS    PC,B   
+ 0708 3404            WATFDC  PSHS    B      
+ 070A D604            ZF164   LDB     <COMREG   
+ 070C C401                    ANDB    #$01   
+ 070E 26FA                    BNE     ZF164  
+ 0710 3584                    PULS    PC,B   
                             
                       * DELAY SUBROUTINE
                               
- 0705 BD0708          DELAY   JSR     DEL1
- 0708 BD070B          DEL1    JSR     DEL0
- 070B 39              DEL0    RTS
+ 0712 BD0715          DELAY   JSR     DEL1
+ 0715 BD0718          DEL1    JSR     DEL0
+ 0718 39              DEL0    RTS
                         
                       *********************************************        
                                      
@@ -808,7 +808,7 @@ ERROR
 
  C100 200B            CMDADR  BRA     CMDSTA
 
- C102 0000                            FCB     $00,$00
+ C102 0000                    FCB     $00,$00
  C104 00                      FCB     $00
  C105 1C              FLXTRK  FCB     $1C         FILE START TRACK
  C106 01                      FCB     $01         FILE START SECTOR
@@ -960,51 +960,51 @@ ERROR
  0100                       END     NEWDISK
 
 SYMBOL TABLE
-    ABORTS 02 0587    BADCNT 00 0022       BEL 00 0007    CHKSEC 02 0371
-    CMDADR 02 C100    CMDSTA 02 C10D    CMPLTE 02 05AD    COMREG 00 EC04
-     DABSS 02 059D    DATREG 00 EC07     DBSDF 00 0025      DBST 02 05EB
-    DCHECK 00 DE0F    DDRIVE 00 DE0C     DDSTR 02 05D4       DEL 02 C1E6
-      DEL0 02 070B      DEL1 02 0708     DEL14 02 C1E3     DEL28 02 C1E0
-     DELAY 02 0705     DENSE 00 0026    DIRIN1 02 04A6    DIRINT 02 049A
+    ABORTS 02 0594    BADCNT 00 0022       BEL 00 0007    CHKSEC 02 0378
+    CMDADR 02 C100    CMDSTA 02 C10D    CMPLTE 02 05BA    COMREG 00 EC04
+     DABSS 02 05AA    DATREG 00 EC07     DBSDF 00 0025      DBST 02 05F8
+    DCHECK 00 DE0F    DDRIVE 00 DE0C     DDSTR 02 05E1       DEL 02 C1E6
+      DEL0 02 0718      DEL1 02 0715     DEL14 02 C1E3     DEL28 02 C1E0
+     DELAY 02 0712     DENSE 00 0026    DIRIN1 02 04B3    DIRINT 02 04A7
     DMAXS0 00 0012    DMAXS1 00 0024       DNS 02 C107    DNSITY 00 0027
-    DOBOOT 02 04C7     DOSE1 02 0285     DOSE2 02 028D     DOSE3 02 02A2
-     DOSE4 02 02B4     DOSE5 02 02C7     DOSE6 02 02DE     DOSE7 02 02EA
-     DOSEC 02 027B    DOSECA 02 0307     DOTRK 02 0435    DOTRK1 02 0471
-    DOTRK2 02 0489    DOTRK3 02 0497       DRN 00 0023    DRVREG 00 EC0C
-    DSCMAP 02 0514     DSEEK 00 DE1B    DSKTAB 00 DE80     DTSTR 02 0600
-    DWKEND 00 1FD4    DWRITE 00 DE03       EOT 00 0004      EXIT 02 01C5
-     EXIT2 02 01C8     EXIT3 02 01CB    FATERS 02 0573    FEXSE4 02 03A3
-     FIRST 00 0101    FIXSEC 02 039A     FKFCB 00 0034    FLXTRK 02 C105
-       FMS 00 D406    FMSCLS 00 D403     FORM1 02 010E    FORM25 02 016C
-    FORM27 02 0197     FORM3 02 01DE    FORM30 02 017C    FORM32 02 01E6
-     FORM4 02 01F1    FORM40 02 0188    FORM45 02 0204    FORM46 02 0207
-     FORM6 02 0229    FORMAT 02 01D3    FSTAVL 00 002C     GETCH 02 C159
+    DOBOOT 02 04D4     DOSE1 02 028C     DOSE2 02 0294     DOSE3 02 02A9
+     DOSE4 02 02BB     DOSE5 02 02CE     DOSE6 02 02E5     DOSE7 02 02F1
+     DOSEC 02 0282    DOSECA 02 030E     DOTRK 02 0442    DOTRK1 02 047E
+    DOTRK2 02 0496    DOTRK3 02 04A4       DRN 00 0023    DRVREG 00 EC0C
+    DSCMAP 02 0521     DSEEK 00 DE1B    DSKTAB 00 DE80     DTSTR 02 060D
+    DWKEND 00 1FD4    DWRITE 00 DE03       EOT 00 0004      EXIT 02 01C9
+     EXIT2 02 01CC     EXIT3 02 01CF    FATERS 02 0580    FEXSE4 02 03AA
+     FIRST 00 0101    FIXSEC 02 03A1     FKFCB 00 0034    FLXTRK 02 C105
+       FMS 00 D406    FMSCLS 00 D403     FORM1 02 010E    FORM25 02 016F
+    FORM27 02 019B     FORM3 02 01E5    FORM30 02 017F    FORM32 02 01ED
+     FORM4 02 01F8    FORM40 02 018C    FORM45 02 020B    FORM46 02 020E
+     FORM6 02 0230    FORMAT 02 01DA    FSTAVL 00 002C     GETCH 02 C159
     GETCH4 02 C16E    GETCHR 00 CD15    GETFIL 00 CD2D    GETHEX 00 CD42
-        GO 02 C171    INBUFF 00 CD1B     INDEC 00 CD48    INITRK 02 0633
+        GO 02 C171    INBUFF 00 CD1B     INDEC 00 CD48    INITRK 02 0640
      L0815 00 0815     L081E 00 081E     L083C 00 083C     LADR1 02 C10A
      LOAD1 02 C122     LOAD2 02 C138     LOAD3 02 C14C    LSTAVL 00 002E
        MAX 00 0032     MAXS0 00 0030     MAXS1 00 0031     MLOAD 02 C1E7
-     MNSTR 02 0613   NEWDISK 02 0100    NUMSTR 02 0622    OUTADR 00 CD45
+     MNSTR 02 0620   NEWDISK 02 0100    NUMSTR 02 062F    OUTADR 00 CD45
     OUTDEC 00 CD39    OUTHEX 00 CD3C     OUTIN 02 0103    OUTIN2 02 0106
      PCRLF 00 CD24    PSTRNG 00 CD1E    PUTCHR 00 CD18      READ 02 C175
      READ3 02 C183     READ5 02 C192     READ6 02 C19C     READ8 02 C1A3
-    READSS 02 041E    REMSE1 02 03B9    REMSE2 02 03BF    REMSE3 02 03D2
-    REMSE4 02 03DC    REMSE5 02 03E0    REMSE6 02 03F6    REMSE7 02 03FD
-    REMSEC 02 03A8    RESTOR 02 06CE     SCRDS 02 055C    SCTBUF 00 C300
-    SECCNT 00 002A    SECREG 00 EC06     SECST 02 05C3    SECTOR 00 0021
-      SEEK 02 C1AE     SEEK1 02 C1C5     SEEK2 02 C1C3       SET 02 0275
-     SETUP 02 0308    SETUP1 02 0341    SETUP2 02 0344    SETUP4 02 034B
+    READSS 02 042B    REMSE1 02 03C0    REMSE2 02 03C6    REMSE3 02 03D9
+    REMSE4 02 03E3    REMSE5 02 03E7    REMSE6 02 03FD    REMSE7 02 0404
+    REMSEC 02 03AF    RESTOR 02 06DB     SCRDS 02 0569    SCTBUF 00 C300
+    SECCNT 00 002A    SECREG 00 EC06     SECST 02 05D0    SECTOR 00 0021
+      SEEK 02 C1AE     SEEK1 02 C1C5     SEEK2 02 C1C3       SET 02 027C
+     SETUP 02 030F    SETUP1 02 0348    SETUP2 02 034B    SETUP4 02 0352
       SIDE 00 0024    SIMPLE 02 C1BD     SMAX0 00 000A    SMAXS0 00 000A
-    SMAXS1 00 0014    SSCMAP 02 0500     STACK 00 C0FF     SUIT1 02 C179
-     SURES 02 0538    SWICH1 02 0396    SWICH2 02 0399    SWITCH 02 037D
+    SMAXS1 00 0014    SSCMAP 02 050D     STACK 00 C0FF     SUIT1 02 C179
+     SURES 02 0545    SWICH1 02 039D    SWICH2 02 03A0    SWITCH 02 0384
     SWKEND 00 13EA    SYSMTH 00 CC0E     SYSYR 00 CC10      TADR 02 C108
-     TEMP1 02 065F      TKSZ 00 0BEA     TRACK 00 0020    TRACKS 02 0033
-     TRHDD 02 0259    TRHDD1 02 025B    TRHDS1 02 024A     TRKHD 02 0240
-    TRKHD1 02 026E    TRKREG 00 EC05    VOLNAM 00 0038    VOLNUM 00 0043
-    VRYTRK 02 0644      WAIT 02 C1A6     WARMS 00 CD03    WATFDC 02 06FB
-      WORK 00 0800      WPST 02 0548    WRITSS 02 0428     WTTRK 02 0661
-    WTTRK1 02 0698    WTTRK2 02 06A9    WTTRK3 02 06B5    WTTRK4 02 06C2
-    WTTRK5 02 06B7     ZF164 02 06FD
+     TEMP1 02 066C      TKSZ 00 0BEA     TRACK 00 0020    TRACKS 02 0033
+     TRHDD 02 0260    TRHDD1 02 0262    TRHDS1 02 0251     TRKHD 02 0247
+    TRKHD1 02 0275    TRKREG 00 EC05    VOLNAM 00 0038    VOLNUM 00 0043
+    VRYTRK 02 0651      WAIT 02 C1A6     WARMS 00 CD03    WATFDC 02 0708
+      WORK 00 0800      WPST 02 0555    WRITSS 02 0435     WTTRK 02 066E
+    WTTRK1 02 06A5    WTTRK2 02 06B6    WTTRK3 02 06C2    WTTRK4 02 06CF
+    WTTRK5 02 06C4     ZF164 02 070A
 178 SYMBOLS
 
 0 error(s), 0 warning(s)
