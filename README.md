@@ -5,7 +5,7 @@ Original informations published by Elektor about this computer are in ELEKTOR CO
 
 See here but in dutch or german only : http://retro.hansotten.nl/6502-sbc/elektuur-junior/elektor-junior-literature/elektor-books/
 
-For french version see Elektor n°100 10/1986/
+For french version see in Elektor n°100 10/1986.
 
 ESS540 is the boot rom.
 
