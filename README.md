@@ -30,7 +30,7 @@ Included is a modified bus board with a power supply connector and a reset pushb
 
 WARNING :
 
-CPU gerber need debug. I found an original board and did not build mine starting from those gerber !
+CPU gerber could need debug. I found an original empty board and did not build mine starting from those gerber !
 
 FDC+VDU gerber are fully debugged.
 
