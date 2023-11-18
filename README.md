@@ -46,6 +46,8 @@ In case you have information about this software please take contact.
 
 Philippe
 
+This computer and all the eprom contents are Elektor creations.
+
 Everything here is provided "AS IS" under GNU GPG V3.
 
 If possible I will support but depending of my free time and interrest. 
