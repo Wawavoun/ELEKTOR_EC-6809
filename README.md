@@ -35,11 +35,11 @@ CPU gerber could need debug. I found an original empty board and did not build m
 FDC+VDU gerber are fully debugged.
 
 
-FLEX and newdisk are "do it myself" adaptations. The original version was lost.
+FLEX and NEWDISK are "do it myself" adaptations. The original version was lost.
 
 The print spooling part is not implemented yet.
 
-In case you have information about this software please take contact.
+In case you have information about the original Flex software coming with this computer please take contact.
 
 
 11/2023
