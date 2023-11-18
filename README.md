@@ -3,6 +3,8 @@
 
 Original informations published by Elektor about this computer are in ELEKTOR COMPUTING n° 3.
 
+See here but in dutch on german only : http://retro.hansotten.nl/6502-sbc/elektuur-junior/elektor-junior-literature/elektor-books/
+
 ESS540 is the boot rom.
 
 This eprom could need modification depending the screen you use (6845 table start at $310).
