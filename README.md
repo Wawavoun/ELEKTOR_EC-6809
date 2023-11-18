@@ -1,7 +1,7 @@
 # ELEKTOR-EC-6809
 -1985- ELEKTOR 6809 2 BOARDS FLEX COMPUTER
 
-Original informations published by Elektor about this computer are in ELEKTOR COMPUTING n° 3.
+Original informations (schematics, bom etc...) published by Elektor about this computer are in ELEKTOR COMPUTING n° 3.
 
 See here but in dutch or german only : http://retro.hansotten.nl/6502-sbc/elektuur-junior/elektor-junior-literature/elektor-books/
 
