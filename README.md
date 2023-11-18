@@ -37,9 +37,15 @@ FDC+VDU gerber are fully debugged.
 
 FLEX and newdisk are "do it myself" adaptations. The original version was lost.
 
+The print spooling part is not implemented yet.
+
 In case you have information about this software please take contact.
 
 
 11/2023
 
 Philippe
+
+Everything here is provided "AS IS" under GNU GPG V3.
+If possible I will support but depending of my free time and interrest. 
+If you use something still mention I am the author / adapter and send me a postcard from your country.
