@@ -34,9 +34,7 @@ ESS542 is the characters generator rom.
 PCB include the Gerber files in zip archive if you want build the computer.
 Included is a modified bus board with a power supply connector and a reset pushbutton.
 
-WARNING :
-
-CPU gerber could need debug. I found an original empty board and did not build mine starting from those gerber !
+WARNING : CPU gerber could need debug. I found an original empty board and did not build mine starting from those gerber !
 
 FDC+VDU gerber are fully debugged.
 
