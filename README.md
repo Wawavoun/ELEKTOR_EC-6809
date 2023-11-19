@@ -5,7 +5,7 @@ Original informations (schematics, bom etc...) published by Elektor about this c
 
 See here but in dutch or german only : http://retro.hansotten.nl/6502-sbc/elektuur-junior/elektor-junior-literature/elektor-books/
 
-For french version see in Elektor n°100 10/1986.
+For french version see in Elektor n°100 10/1986 here : https://github.com/Wawavoun/ELEKTOR_EC-6809/tree/main/Elektor
 
 ESS540 is the boot rom.
 
