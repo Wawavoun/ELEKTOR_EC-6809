@@ -1,5 +1,6 @@
 
-;* EC6809 DISK DRIVER
+;* ELEKTOR EC6809 DISK DRIVER
+;* 11/2023 PH. ROEHR
 
 ;*EPROM ROUTINES ADDRESS
 
@@ -14,7 +15,7 @@ ERTS    EQU     $F00C
 ETEMPO  EQU     $F206
  
 COLDS   EQU     $CD00       ; FLEX COLD ENTRY  
-PRCNT	EQU		$CC34		; PRINTER RUNNING FLAG
+PRCNT   EQU     $CC34       ; PRINTER RUNNING FLAG
 
 ;* DISK DRIVER ROUTINE JUMP TABLE
 
@@ -91,14 +92,14 @@ SEEK    PSHS    U,Y
 ;*                       = 0 if an error                             
 
 READ    PSHS    U,Y
-		TST		PRCNT
-		BEQ		READ2
-		SWI3			  
-		NOP
-READ2	ORCC	#$10	   ; DISABLE IRQ	
+        TST     PRCNT
+        BEQ     READ2
+        SWI3              
+        NOP
+READ2   ORCC    #$10       ; DISABLE IRQ    
         LDU     #DSKTAB
         JSR     EREAD
-        ANDCC	#$EF	   ; ENABLE IRQ
+        ANDCC   #$EF       ; ENABLE IRQ
         PULS    U,Y
         RTS
 
@@ -119,14 +120,14 @@ READ2	ORCC	#$10	   ; DISABLE IRQ
 ;*                       = 0 if an error
 
 WRITE   PSHS    U,Y
-		TST		PRCNT
-		BEQ		WRIT2
-		SWI3
-		NOP
-WRIT2	ORCC	#$10	   ; DISABLE IRQ			
+        TST     PRCNT
+        BEQ     WRIT2
+        SWI3
+        NOP
+WRIT2   ORCC    #$10       ; DISABLE IRQ            
         LDU     #DSKTAB
         JSR     EWRITE
-        ANDCC	#$EF	   ; ENABLE IRQ
+        ANDCC   #$EF       ; ENABLE IRQ
         PULS    U,Y
         RTS
 
@@ -144,14 +145,14 @@ WRIT2	ORCC	#$10	   ; DISABLE IRQ
 ;*                       = 0 if an error
 
 VERIF   PSHS    A,U,Y
-		TST		PRCNT
-		BEQ		VERI2
-		SWI3
-		NOP
-VERI2	ORCC	#$10	   ; DISABLE IRQ
+        TST     PRCNT
+        BEQ     VERI2
+        SWI3
+        NOP
+VERI2   ORCC    #$10       ; DISABLE IRQ
         LDU     #DSKTAB
         JSR     EVERIF
-        ANDCC	#$EF	   ; ENABLE IRQ
+        ANDCC   #$EF       ; ENABLE IRQ
         PULS    A,U,Y
         RTS     
 
@@ -235,7 +236,7 @@ DRV     PSHS    U,X,Y
 ;*                   (C) = 0 IF DRIVE READY
 ;*                       = 1 IF NOT READY
 
-CHKRDY	LDA     $03,X
+CHKRDY  LDA     $03,X
         CMPA    #$02       ; CHECK DRIVE 0 -> 2
         BLS     TEST
         LDB     #$80       ; LOAD CODE ERROR AND CLEAR Z    

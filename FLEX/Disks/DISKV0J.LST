@@ -1,5 +1,6 @@
 
-                      ;* EC6809 DISK DRIVER
+                      ;* ELEKTOR EC6809 DISK DRIVER
+                      ;* 11/2023 PH. ROEHR
 
                       ;*EPROM ROUTINES ADDRESS
 
@@ -14,8 +15,7 @@
  F206                 ETEMPO  EQU     $F206
                        
  CD00                 COLDS   EQU     $CD00       ; FLEX COLD ENTRY  
- CC34                 PRCNT   EQU             $CC34           ; PRINTER 
-RUNNING FLAG
+ CC34                 PRCNT   EQU     $CC34       ; PRINTER RUNNING FLAG
 
                       ;* DISK DRIVER ROUTINE JUMP TABLE
 
@@ -119,11 +119,11 @@ sector is to be placed.
             
 
  DE2D 3460            READ    PSHS    U,Y
- DE2F 7DCC34                          TST             PRCNT
- DE32 2703                            BEQ             READ2
- DE34 113F                            SWI3                      
- DE36 12                              NOP
- DE37 1A10            READ2   ORCC    #$10       ; DISABLE IRQ        
+ DE2F 7DCC34                  TST     PRCNT
+ DE32 2703                    BEQ     READ2
+ DE34 113F                    SWI3              
+ DE36 12                      NOP
+ DE37 1A10            READ2   ORCC    #$10       ; DISABLE IRQ    
  DE39 CEDE80                  LDU     #DSKTAB
  DE3C BDF006                  JSR     EREAD
  DE3F 1CEF                    ANDCC   #$EF       ; ENABLE IRQ
@@ -151,12 +151,11 @@ containing data
                       ;*                       = 0 if an error
 
  DE44 3460            WRITE   PSHS    U,Y
- DE46 7DCC34                          TST             PRCNT
- DE49 2703                            BEQ             WRIT2
- DE4B 113F                            SWI3
- DE4D 12                              NOP
- DE4E 1A10            WRIT2   ORCC    #$10       ; DISABLE IRQ                 
-       
+ DE46 7DCC34                  TST     PRCNT
+ DE49 2703                    BEQ     WRIT2
+ DE4B 113F                    SWI3
+ DE4D 12                      NOP
+ DE4E 1A10            WRIT2   ORCC    #$10       ; DISABLE IRQ            
  DE50 CEDE80                  LDU     #DSKTAB
  DE53 BDF009                  JSR     EWRITE
  DE56 1CEF                    ANDCC   #$EF       ; ENABLE IRQ
@@ -180,10 +179,10 @@ immediately after a write
                       ;*                       = 0 if an error
 
  DE5B 3462            VERIF   PSHS    A,U,Y
- DE5D 7DCC34                          TST             PRCNT
- DE60 2703                            BEQ             VERI2
- DE62 113F                            SWI3
- DE64 12                              NOP
+ DE5D 7DCC34                  TST     PRCNT
+ DE60 2703                    BEQ     VERI2
+ DE62 113F                    SWI3
+ DE64 12                      NOP
  DE65 1A10            VERI2   ORCC    #$10       ; DISABLE IRQ
  DE67 CEDE80                  LDU     #DSKTAB
  DE6A BDF015                  JSR     EVERIF
