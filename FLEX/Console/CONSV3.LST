@@ -1,8 +1,9 @@
 
-                      ;* EC6809 CONSOLE I/O DRIVER
+                      ;* ELEKTOR EC6809 CONSOLE I/O DRIVER
+                      ;* 11/2023 PH. ROEHR
 
- EF80                 VIA             EQU             $EF80
- C700                 CHPR    EQU             $C700           
+ EF80                 VIA     EQU     $EF80
+ C700                 CHPR    EQU     $C700       
 
  DEAC                 JSWIVE  EQU     $DEAC      ; SWI3 VECTOR LOCATION
  DEAE                 JIRQVE  EQU     $DEAE      ; IRQ VECTOR LOCATION
@@ -89,8 +90,8 @@ ON PB7
  D3AC 48                      ASLA
  D3AD 2409                    BCC    NSPOOL
  D3AF 8640                    LDA    #$40
- D3B1 A70D                            STA    $0D,X       ; CLEAR INTERRUPT 
-FLAG REGISTER
+ D3B1 A70D                    STA    $0D,X       ; CLEAR INTERRUPT FLAG 
+REGISTER
  D3B3 3502                    PULS   A           ; RESTORE STACK
  D3B5 7EC700                  JMP    CHPR        ; JUMP TO SPOOLER
  D3B8 3502            NSPOOL  PULS   A           ; RESTORE STACK
