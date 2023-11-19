@@ -1,0 +1,117 @@
+
+                      ;* EC6809 CONSOLE I/O DRIVER
+
+ EF80                 VIA             EQU             $EF80
+ C700                 CHPR    EQU             $C700           
+
+ DEAC                 JSWIVE  EQU     $DEAC      ; SWI3 VECTOR LOCATION
+ DEAE                 JIRQVE  EQU     $DEAE      ; IRQ VECTOR LOCATION
+
+ F033                 WTLDVI  EQU     $F033      ; GET // DATA INPUT
+ F036                 INIT    EQU     $F036      ; INIT OF VIA, ACIA, CRTC     
+   
+ F039                 VIARDY  EQU     $F039      ; TEST // DATA READY        
+ F03C                 JMPADR  EQU     $F03C      ; PUT CHAR ON SCREEN
+ F03F                 GDTVIE  EQU     $F03F      ; GET // DATA INPUT WITH ECHO
+ F030                 ERTI    EQU     $F030      ; RETURN FROM INTERRUPT
+ F01B                 ERTS    EQU     $F01B
+
+ CD00                 COLDS   EQU     $CD00
+
+                              ORG     $D3E5
+
+ D3E5 D370            INCHN   FDB     JINCHN     ; INPUT CHARACTER WITHOUT 
+ECHO
+ D3E7 F030            IHNDLR  FDB     ERTI       ; IRQ INTERRUPT HANDLER
+ D3E9 DEAC            SWIVEC  FDB     JSWIVE     ; SWI3 VECTOR LOCATION
+ D3EB DEAE            IRQVEC  FDB     JIRQVE     ; IRQ VECTOR LOCATION
+ D3ED D3A0            TMOFF   FDB     JTMOFF     ; TIMER OFF ROUTINE
+ D3EF D39A            TMON    FDB     JTMON      ; TIMER ON ROUTINE
+ D3F1 D387            TMINT   FDB     JTMINT     ; TIMER INITIALIZATION
+ D3F3 D385            MONITR  FDB     JMONIT     ; MONITOR ENTRY ADDRESS
+ D3F5 F01B            TINIT   FDB     ERTS       ; TERMINAL INITIALIZATION
+ D3F7 D37E            STAT    FDB     JSTAT      ; CHECK TERMINAL STATUS
+ D3F9 F03C            OUTCH   FDB     JMPADR     ; OUTPUT CHARACTER
+ D3FB D377            INCH    FDB     JINCH      ; INPUT CHARACTER WITH ECHO
+
+                              ORG     $D370
+
+                      ;* INPUT CHARACTER WITHOUT ECHO
+ D370 BDF033          JINCHN  JSR     WTLDVI   
+ D373 847F                    ANDA    #$7F       ; CLEAR PARITY BIT
+ D375 3580                    PULS    PC
+
+                      ;* INPUT CHARACTER WITH ECHO
+ D377 BDF03F          JINCH   JSR     GDTVIE
+ D37A 847F                    ANDA    #$7F       ; CLEAR PARITY BIT
+ D37C 3580                    PULS    PC
+
+                      ;* CHECK VIA STATUS (IF CHAR IS WAITING Z=1, ELSE Z=0)   
+   
+ D37E 3402            JSTAT   PSHS    A
+ D380 BDF039                  JSR     VIARDY
+ D383 3582                    PULS    A,PC 
+                              
+                      ;* MONITOR ENTRY ADDRESS
+ D385 3F              JMONIT  SWI             
+ D386 08                      FCB     $08
+                              
+                      ;* TIMER INITIALIZATION        
+ D387 8EEF80          JTMINT  LDX    #VIA        
+ D38A 8640                    LDA    #$40        
+ D38C A70D                    STA    $0D,X       ; CLEAR INTERRUPT FLAG 
+REGISTER        
+ D38E 8640                    LDA    #$40        ; T1 FREE RUN MODE, NO OUTPUT 
+ON PB7        
+ D390 A70B                    STA    $0B,X       ; STARTS         
+ D392 CC3A98                  LDD    #15000      ; 15 MS INTERRUPTS            
+ 
+ D395 E704                    STB    4,X         ; WRITE LOW ORDER LATCH       
+ 
+ D397 A705                    STA    5,X         ; WRITE HIGH ORDER LATCH      
+  
+ D399 39                      RTS        
+                              
+                      ;* TIMER ON ROUTINE        
+ D39A 86C0            JTMON   LDA    #$C0        ; ENABLE T1 IRQ        
+ D39C B7EF8E                  STA    VIA+$E        
+ D39F 39                      RTS        
+                              
+                      ;* TIMER OFF ROUTINE       
+ D3A0 8628            JTMOFF  LDA    #40         ; DISABLE T1 IRQ       
+ D3A2 B7EF8E                  STA    VIA+$E       
+ D3A5 39                      RTS       
+
+                      ;* IRQ INTERCEPTION        
+ D3A6 3402            JIHNDL  PSHS   A           ; SAVES ON STACK
+ D3A8 B6EF8D                  LDA    VIA+$0D     ; GET IFR
+ D3AB 48                      ASLA               ; TO CARRY
+ D3AC 48                      ASLA
+ D3AD 2409                    BCC    NSPOOL
+ D3AF 8640                    LDA    #$40
+ D3B1 A70D                            STA    $0D,X       ; CLEAR INTERRUPT 
+FLAG REGISTER
+ D3B3 3502                    PULS   A           ; RESTORE STACK
+ D3B5 7EC700                  JMP    CHPR        ; JUMP TO SPOOLER
+ D3B8 3502            NSPOOL  PULS   A           ; RESTORE STACK
+ D3BA 3B                      RTI
+                              
+                      ;* CHANGE DEFAULT MEMEND VALUE (AS PER FAG)
+                              ORG     $CC2B
+ CC2B BEFF                    FCB     $BE,$FF
+
+ CD00                         END     COLDS
+
+SYMBOL TABLE
+      CHPR 00 C700     COLDS 00 CD00      ERTI 00 F030      ERTS 00 F01B
+    GDTVIE 00 F03F    IHNDLR 02 D3E7      INCH 02 D3FB     INCHN 02 D3E5
+      INIT 00 F036    IRQVEC 02 D3EB    JIHNDL 02 D3A6     JINCH 02 D377
+    JINCHN 02 D370    JIRQVE 00 DEAE    JMONIT 02 D385    JMPADR 00 F03C
+     JSTAT 02 D37E    JSWIVE 00 DEAC    JTMINT 02 D387    JTMOFF 02 D3A0
+     JTMON 02 D39A    MONITR 02 D3F3    NSPOOL 02 D3B8     OUTCH 02 D3F9
+      STAT 02 D3F7    SWIVEC 02 D3E9     TINIT 02 D3F5     TMINT 02 D3F1
+     TMOFF 02 D3ED      TMON 02 D3EF       VIA 00 EF80    VIARDY 00 F039
+    WTLDVI 00 F033
+33 SYMBOLS
+
+0 error(s), 0 warning(s)
