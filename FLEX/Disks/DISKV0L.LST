@@ -1,0 +1,341 @@
+
+                      ;* ELEKTOR EC6809 DISK DRIVER
+                      ;* 11/2023 PH. ROEHR
+
+                      ;*EPROM ROUTINES ADDRESS
+
+ F006                 EREAD   EQU     $F006
+ F009                 EWRITE  EQU     $F009
+ F00F                 ERESTO  EQU     $F00F
+ F012                 EDRSEL  EQU     $F012
+ F003                 ESEEK   EQU     $F003 
+ F01E                 EINIT   EQU     $F01E
+ F015                 EVERIF  EQU     $F015
+ F00C                 ERTS    EQU     $F00C
+ F206                 ETEMPO  EQU     $F206
+                       
+ CD00                 COLDS   EQU     $CD00       ; FLEX COLD ENTRY  
+ CC34                 PRCNT   EQU     $CC34       ; PRINTER RUNNING FLAG
+
+                      ;* DISK DRIVER ROUTINE JUMP TABLE
+
+                              ORG     $DE00
+
+ DE00 7EDE2C          DREAD   JMP     READ
+ DE03 7EDE42          DWRITE  JMP     WRITE
+ DE06 7EDE58          DVERIFY JMP     VERIF
+ DE09 7EDEB0          DRESTOR JMP     RST
+ DE0C 7EDEBF          DDRIVE  JMP     DRV
+ DE0F 7EDEE5          DCHECK  JMP     QUICK
+ DE12 7EDEE5          DQUICK  JMP     QUICK
+ DE15 7EDE1E          DINIT   JMP     INIT
+ DE18 7EDE21          DWARM   JMP     WARM
+ DE1B 7EDE22          DSEEK   JMP     SEEK
+
+                      ;*   INIT    This routine performs any necessary 
+initialization of the
+                      ;*           drivers during cold start (at boot time). 
+Actually, any                     
+                      ;*           operation which must be done when the 
+system is first booted                     
+                      ;*           can be done here.                     
+                      ;*                     
+                      ;*           ENTRY - No parameters                     
+                      ;*                     
+                      ;*           EXIT - A, B, X, Y, and U may be destroyed   
+                  
+
+ DE1E BDF01E          INIT    JSR     EINIT
+
+                      ;*   WARM    Performs any necessary functions during 
+FLEX warmstart. FLEX
+                      ;*           calls this routine each time it goes thru 
+the warm start                     
+                      ;*           procedure (after every command). As an 
+example, some                     
+                      ;*           controllers use PIA's for communication 
+with the processor.                     
+                      ;*           If FLEX is exited with a CPU reset, these 
+PIA's may also be                     
+                      ;*           reset such that the controller would not 
+function properly                     
+                      ;*           upon a jump to the FLEX warm start entry 
+point. This routine                     
+                      ;*           could re-initialize the PIA when the warm 
+start was executed.                     
+                      ;*                     
+                      ;*           ENTRY - No parameters                     
+                      ;*                     
+                      ;*           EXIT - A, B, X, Y, and U may be destroyed   
+                  
+                       
+ DE21 39              WARM    RTS
+                          
+                      ;*   SEEK    Seeks to the track specified in the 'A' 
+accumulator. In    
+                      ;*           double-sided systems, this routine should 
+also select the  
+                      ;*           correct side depending on the sector number 
+supplied in 'B'.   
+                      ;*  
+                      ;*           ENTRY - (A) = Track Number 
+                      ;*                   (B) = Sector Number    
+                      ;*  
+                      ;*           EXIT -  (X) May be destroyed (See text)    
+                      ;*                   (A) May be destroyed (See text)    
+                      ;*                   (B) = Error condition  
+                      ;*                   (Z) = 1 if no error    
+                      ;*                       = 0 if an error    
+                          
+ DE22 3470            SEEK    PSHS    U,X,Y,S
+ DE24 CEDE80                  LDU     #DSKTAB
+ DE27 BDF003                  JSR     ESEEK
+ DE2A 35F0                    PULS    U,X,Y,S,PC
+                          
+                      ;*   READ    This routine reads the specified sector 
+into memory at the
+                      ;*           specified address. This routine should 
+perform a seek                     
+                      ;*           operation if necessary. A sector is 256 
+bytes in length.                     
+                      ;*                     
+                      ;*           ENTRY - (X) = Address in memory where 
+sector is to be placed.                     
+                      ;*                   (A) = Track Number                  
+   
+                      ;*                   (B) = Sector Number                 
+    
+                      ;*                     
+                      ;*           EXIT -  (X) May be destroyed                
+     
+                      ;*                   (A) May be destroyed                
+     
+                      ;*                   (B) = Error condition               
+      
+                      ;*                   (Z) = 1 if no error                 
+    
+                      ;*                       = 0 if an error                 
+            
+
+ DE2C 3460            READ    PSHS    U,Y,S
+ DE2E 7DCC34                  TST     PRCNT
+ DE31 2703                    BEQ     READ2
+ DE33 113F                    SWI3              
+ DE35 12                      NOP
+ DE36 1A10            READ2   ORCC    #$10       ; DISABLE IRQ    
+ DE38 CEDE80                  LDU     #DSKTAB
+ DE3B BDF006                  JSR     EREAD
+ DE3E 1CEF                    ANDCC   #$EF       ; ENABLE IRQ
+ DE40 35E0                    PULS    U,Y,S,PC
+
+                      ;*   WRITE   This routine writes the information from 
+the specifed memory
+                      ;*           buffer area to the disk sector specified. 
+This routine should
+                      ;*           perform a seek operation if necessary. A 
+sector is 256 bytes
+                      ;*           in length.
+                      ;*
+                      ;*           ENTRY - (X) = Address of 256 memory buffer 
+containing data
+                      ;*                         to be written to disk
+                      ;*                   (A) = Track Number
+                      ;*                   (B) = Sector Number
+                      ;*
+                      ;*           EXIT -  (X) May be destroyed
+                      ;*                   (A) May be destroyed
+                      ;*                   (B) = Error condition
+                      ;*                   (Z) = 1 if no error
+                      ;*                       = 0 if an error
+
+ DE42 3460            WRITE   PSHS    U,Y,S
+ DE44 7DCC34                  TST     PRCNT
+ DE47 2703                    BEQ     WRIT2
+ DE49 113F                    SWI3
+ DE4B 12                      NOP
+ DE4C 1A10            WRIT2   ORCC    #$10       ; DISABLE IRQ            
+ DE4E CEDE80                  LDU     #DSKTAB
+ DE51 BDF009                  JSR     EWRITE
+ DE54 1CEF                    ANDCC   #$EF       ; ENABLE IRQ
+ DE56 35E0                    PULS    U,Y,S,PC
+
+                      ;*   VERIFY  The sector just written to the disk is to 
+be verified to
+                      ;*           determine if there are CRC errors. No seek 
+is required as
+                      ;*           this routine will only be called 
+immediately after a write
+                      ;*           single sector operation.
+                      ;*
+                      ;*           ENTRY - No entry parameters
+                      ;*
+                      ;*           EXIT -  (X) May be destroyed
+                      ;*                   (A) May be destroyed
+                      ;*                   (B) = Error condition
+                      ;*                   (Z) = 1 if no error
+                      ;*                       = 0 if an error
+
+ DE58 3462            VERIF   PSHS    A,U,Y,S
+ DE5A 7DCC34                  TST     PRCNT
+ DE5D 2703                    BEQ     VERI2
+ DE5F 113F                    SWI3
+ DE61 12                      NOP
+ DE62 1A10            VERI2   ORCC    #$10       ; DISABLE IRQ
+ DE64 CEDE80                  LDU     #DSKTAB
+ DE67 BDF015                  JSR     EVERIF
+ DE6A 1CEF                    ANDCC   #$EF       ; ENABLE IRQ
+ DE6C 35E2                    PULS    A,U,Y,S,PC
+
+                      ;*   $DE80 -> $DEAF RESERVED AS ESS540 EPROM WORK RAM
+                              
+                              ORG     $DE80
+                              
+ DE80                 DSKTAB  RMB     $DE80-$DEB0
+                              
+                              ORG     $DEB0
+
+                      ;*   RESTORE A RESTORE OPERATION (ALSO KNOWN AS A "SEEK 
+TO TRACK 00") IS TO
+                      ;*           BE PERFORMED ON THE SPECIFIED DRIVE. THE 
+DRIVE IS SPECIFIED
+                      ;*           IN THE FCB POINTED TO BY THE CONTENTS OF 
+THE X REGISTER. NOTE
+                      ;*           THAT THE DRIVE NUMBER IS THE 4TH BYTE OF 
+THE FCB. THIS
+                      ;*           ROUTINE SHOULD SELECT THE DRIVE BEFORE 
+EXECUTING THE RESTORE
+                      ;*           OPERATION.
+
+                      ;*           ENTRY - (X) = FCB ADDRESS (3,X CONTAINS 
+DRIVE NUMBER)
+
+                      ;*           EXIT -  (X) MAY BE DESTROYED
+                      ;*                   (A) MAY BE DESTROYED
+                      ;*                   (B) = ERROR CONDITION
+                      ;*                   (Z) = 1 IF NO ERROR
+                      ;*                       = 0 IF AN ERROR
+
+ DEB0 BDDEBF          RST     JSR     DRV
+ DEB3 3460                    PSHS    U,Y,S
+ DEB5 CEDE80                  LDU     #DSKTAB
+ DEB8 A603                    LDA     3,X
+ DEBA BDF00F                  JSR     ERESTO
+ DEBD 35E0                    PULS    U,Y,S,PC 
+
+                      ;*   DRIVE   THE SPECIFIED DRIVE IS TO BE SELECTED. THE 
+DRIVE IS SPECIFIED
+                      ;*           IN THE FCB POINTED TO BY THE CONTENTS OF 
+THE X REGISTER. NOTE
+                      ;*           THAT THE DRIVE NUMBER IS THE 4TH BYTE OF 
+THE FCB.
+
+                      ;*           ENTRY - (X) = FCB ADDRESS (3,X CONTAINS 
+DRIVE NUMBER)
+
+                      ;*           EXIT -  (X) MAY BE DESTROYED
+                      ;*                   (A) MAY BE DESTROYED
+                      ;*                   (B) = $0F IF NON-EXISTENT DRIVE
+                      ;*                       = ERROR CONDITION OTHERWISE
+                      ;*                   (Z) = 1 IF NO ERROR
+                      ;*                       = 0 IF AN ERROR
+                      ;*                   (C) = 0 IF NO ERROR
+                      ;*                       = 1 IF AN ERROR
+
+ DEBF 3470            DRV     PSHS    U,X,Y,S
+ DEC1 CEDE80                  LDU     #DSKTAB
+ DEC4 A603                    LDA     $3,X
+ DEC6 BDF012                  JSR     EDRSEL
+ DEC9 35F0                    PULS    U,X,Y,S,PC
+                                             
+                      ;*   CHKRDY  CHECK FOR A DRIVE READY CONDITION. THE 
+DRIVE NUMBER IS FOUND
+                      ;*           IN THE SPECIFIED FCB (AT 3,X). IF THE 
+USER'S CONTROLLER TURNS
+                      ;*           THE DRIVE MOTORS OFF AFTER SOME TIME DELAY, 
+THIS ROUTINE
+                      ;*           SHOULD FIRST CHECK FOR A DRIVE READY 
+CONDITION AND IF IT IS
+                      ;*           NOT READY, SHOULD DELAY LONG ENOUGH FOR THE 
+MOTORS TO COME UP
+                      ;*           TO SPEED, THEN CHECK AGAIN. THIS DELAY 
+SHOULD BE DONE ONLY IF
+                      ;*           NOT READY ON THE FIRST TRY AND ONLY IF 
+NECESSARY FOR THE
+                      ;*           PARTICULAR DRIVES AND CONTROLLER! IF THE 
+HARDWARE ALWAYS
+                      ;*           LEAVES THE DRIVE MOTORS ON, THIS ROUTINE 
+SHOULD PERFORM A
+                      ;*           SINGLE CHECK FOR DRIVE READY AND 
+IMMEDIATELY RETURN THE
+                      ;*           RESULTING STATUS. SYSTEMS WHICH DO NOT HAVE 
+THE ABILITY TO
+                      ;*           CHECK FOR A DRIVE READY CONDITION SHOULD 
+SIMPLY ALWAYS RETURN
+                      ;*           A READY STATUS IF THE DRIVE NUMBER IS 
+VALID.
+
+                      ;*           ENTRY - (X) = FCB ADDRESS (3,X CONTAINS 
+DRIVE NUMBER)
+
+                      ;*           EXIT -  (X) MAY BE DESTROYED
+                      ;*                   (A) MAY BE DESTROYED
+                      ;*                   (B) = ERROR CONDITION
+                      ;*                   (Z) = 1 IF DRIVE READY
+                      ;*                       = 0 IF NOT READY
+                      ;*                   (C) = 0 IF DRIVE READY
+                      ;*                       = 1 IF NOT READY
+
+ DECB 3460            CHKRDY  PSHS    U,Y,S
+ DECD A603                    LDA     $03,X
+ DECF 8102                    CMPA    #$02       ; CHECK DRIVE 0 -> 2
+ DED1 2306                    BLS     TEST
+ DED3 C680                    LDB     #$80       ; LOAD CODE ERROR AND CLEAR Z 
+   
+ DED5 1A01                    ORCC    #$01       ; SET C
+ DED7 35E0                    PULS    U,Y,S,PC
+                      ;*  MAKE A LONG DELAY
+ DED9 8E0FFF          TEST    LDX     #$0FFF
+ DEDC 171327          TEST1   LBSR    ETEMPO
+ DEDF 301F                    LEAX    -1,X
+ DEE1 26F9                    BNE     TEST1
+ DEE3 200E                    BRA     OK
+                              
+                      ;*   QUICK   THIS ROUTINE PERFORMS A "QUICK" DRIVE READY 
+CHECK. ITS
+                      ;*           FUNCTION IS EXACTLY LIKE THE CHKRDY ROUTINE 
+ABOVE EXCEPT THAT
+                      ;*           NO DELAY SHOULD BE DONE. IF THE DRIVE DOES 
+NOT GIVE A READY
+                      ;*           CONDITION ON THE FIRST CHECK, A NOT READY 
+CONDITION IS
+                      ;*           IMMEDIATELY RETURNED. ENTRY AND EXIT ARE AS 
+ABOVE.
+
+ DEE5 3460            QUICK   PSHS    U,Y,S
+ DEE7 A603                    LDA     $03,X
+ DEE9 8102                    CMPA    #$02       ; CHECK DRIVE 0 -> 2
+ DEEB 2306                    BLS     OK
+ DEED C680                    LDB     #$80       ; LOAD CODE ERROR AND CLEAR Z 
+   
+ DEEF 1A01                    ORCC    #$01       ; SET C
+ DEF1 35F0                    PULS    U,X,Y,PC
+ DEF3 5F              OK      CLRB               ; ASSUME READY - SET Z
+ DEF4 1CFE                    ANDCC   #$FE       ; CLEAR C
+ DEF6 35E0                    PULS    U,Y,S,PC
+
+ CD00                         END     COLDS
+
+SYMBOL TABLE
+    CHKRDY 02 DECB     COLDS 00 CD00    DCHECK 02 DE0F    DDRIVE 02 DE0C
+     DINIT 02 DE15    DQUICK 02 DE12     DREAD 02 DE00   DRESTOR 02 DE09
+       DRV 02 DEBF     DSEEK 02 DE1B    DSKTAB 02 DE80   DVERIFY 02 DE06
+     DWARM 02 DE18    DWRITE 02 DE03    EDRSEL 00 F012     EINIT 00 F01E
+     EREAD 00 F006    ERESTO 00 F00F      ERTS 00 F00C     ESEEK 00 F003
+    ETEMPO 00 F206    EVERIF 00 F015    EWRITE 00 F009      INIT 02 DE1E
+        OK 02 DEF3     PRCNT 00 CC34     QUICK 02 DEE5      READ 02 DE2C
+     READ2 02 DE36       RST 02 DEB0      SEEK 02 DE22      TEST 02 DED9
+     TEST1 02 DEDC     VERI2 02 DE62     VERIF 02 DE58      WARM 02 DE21
+     WRIT2 02 DE4C     WRITE 02 DE42
+38 SYMBOLS
+
+0 error(s), 0 warning(s)
