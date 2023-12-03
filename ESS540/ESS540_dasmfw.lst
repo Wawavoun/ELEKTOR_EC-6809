@@ -1,0 +1,1299 @@
+                      ; dasmfw: Disassembler Framework V0.35
+                      ; Loaded: binary file "ESS540.bin"
+                      ; Loaded: Info file "ESS540_dasmfw.nfo"
+                      
+                      
+                      ;****************************************************
+                      ; Used Labels
+                      ;****************************************************
+                      
+0120                  BOOTROM EQU     $0120
+C080                  INPBUF  EQU     $C080
+C100                  CMDAD1  EQU     $C100
+C200                  CMDAD2  EQU     $C200
+DE80                  DRVTAB  EQU     $DE80
+DE92                  GRADDR  EQU     $DE92
+DE94                  SCORAD  EQU     $DE94
+DE96                  CURPOS  EQU     $DE96
+DE98                  CURROW  EQU     $DE98
+DE99                  CURLIN  EQU     $DE99
+DE9A                  MDE9A   EQU     $DE9A
+DE9C                  MDE9C   EQU     $DE9C
+DE9E                  MDE9E   EQU     $DE9E
+DEA0                  MDEA0   EQU     $DEA0
+DEA2                  MDEA2   EQU     $DEA2
+DEA4                  MDEA4   EQU     $DEA4
+DEA5                  MDEA5   EQU     $DEA5
+DEA6                  MDEA6   EQU     $DEA6
+DEA7                  MDEA7   EQU     $DEA7
+DEA8                  MDEA8   EQU     $DEA8
+DEA9                  MDEA9   EQU     $DEA9
+E000                  VIDRAM  EQU     $E000
+EC00                  CRTC    EQU     $EC00
+EC01                  CRTC_1  EQU     $EC01
+EC04                  FDC     EQU     $EC04
+EC05                  FDCTRK  EQU     $EC05
+EC06                  FDCSEC  EQU     $EC06
+EC07                  FDCDAT  EQU     $EC07
+EC08                  FDCSTA  EQU     $EC08
+EC0C                  DRVLAT  EQU     $EC0C
+EF60                  ACIASR  EQU     $EF60
+EF61                  ACIADR  EQU     $EF61
+EF81                  VIA_1   EQU     $EF81
+EF88                  VIA_8   EQU     $EF88
+EF8D                  VIA_13  EQU     $EF8D
+FFFE                  RESET   EQU     $FFFE
+                      
+                      ;****************************************************
+                      ; Program's Code Areas
+                      ;****************************************************
+                      
+                      
+F000                          ORG     $F000
+                      
+                      ; EC-6809 MEMORY MAP
+                      
+                      ; 0000-BFFF  USER RAM
+                      ; C000-DFFF  FLEX
+                      ; C000       FLEX LOAD ADDRESS
+                      ; C000-C07F  STACK STACK POINTER INIT = C07F
+                      ; C080-C0FF  INPUT BUFFER
+                      ; C100-C6FF  UTILITY COMMAND AREA
+                      ; C700-C83F  SCHEDULER & SPOOLER
+                      ; C840-C97F  FILE CONTROL BLOCK
+                      ; C980-CBFF  SYSTEM FILES AREA
+                      ; CC00-D3FF  DISK OPERATING SYSTEM
+                      ; D400-DDFF  FILE MANAGEMENT SYSTEM
+                      ; DE00-DFFF  FLOPPY ROUTINES
+                      ; E000-E7FF  VIDEO RAM
+                      ; E800-EBFF  USER I/O
+                      ; EC00-ECFF  FDC + CRTC
+                      ; EC00        CRTC
+                      ; EC04        FDC STATUS - CDE REGISTER
+                      ; EC05        FDC TRACK REGISTER
+                      ; EC06        FDC SECTOR REGISTER
+                      ; EC07        FDC DATA REGISTER
+                      ; EC0C        DRIVE SELECT LATCH
+                      ; EF00-EFFF  ACIA + VIA
+                      ; EF60        ACIA
+                      ; EF80        VIA
+                      ; ED00-EDFF  USER I/O
+                      ; E800-EFFF  I/O
+                      ; F000-F7FF  BOOT + SCREEN ROM
+                      ; F800-FFFF  EC-6809 ASSIST09 ROM
+                      ; *
+                      ; *      TABLE OF SUPPLEMENTARY I/O VECTORS
+                      ; *
+F000  160239                  LBRA    FLXBOT                  ; F000: 16 02 39        @F000 LOAD BOOT SECTOR & JUMP
+F003  16003C                  LBRA    SEEK                    ; F003: 16 00 3C        @F003 SEEK TRACK
+F006  1600AC                  LBRA    READ                    ; F006: 16 00 AC        @F006 READ SECTOR
+F009  1600EA                  LBRA    WRITE                   ; F009: 16 00 EA        @F009 WRITE SECTOR
+F00C  160065                  LBRA    ZF074                   ; F00C: 16 00 65        @F00C SIMPLE RTS
+F00F  160140                  LBRA    RESTOR                  ; F00F: 16 01 40        @F00F RESTORE
+F012  16016D                  LBRA    DRVSEL                  ; F012: 16 01 6D        @F012 SELECT DRIVE
+F015  160120                  LBRA    VERIF                   ; F015: 16 01 20        @F015 VERIFY
+F018  5F                      CLRB                            ; F018: 5F              @F018 CLEAR B AND RETURN
+F019  39                      RTS                             ; F019: 39             
+F01A  12                      NOP                             ; F01A: 12             
+F01B  160056                  LBRA    ZF074                   ; F01B: 16 00 56        SIMPLE RTS
+F01E  1601B2                  LBRA    INITAB                  ; F01E: 16 01 B2        INIT TABLE AND TRACK REG
+F021  160282                  LBRA    GETDTA                  ; F021: 16 02 82        WAIT FOR AND GET SERIAL DATA
+F024  160293                  LBRA    GDTAEC                  ; F024: 16 02 93        GET SERIAL DATA WITH ECHO
+F027  160292                  LBRA    WRTDTA                  ; F027: 16 02 92        WRITE SERIAL DATA
+F02A  160265                  LBRA    DATRDY                  ; F02A: 16 02 65        TEST SERIAL DATA READY
+F02D  16026B                  LBRA    INIACI                  ; F02D: 16 02 6B        INIT ACIA
+F030  3B                      RTI                             ; F030: 3B              @F030 RETURN FROM INTERRUPT
+F031  12                      NOP                             ; F031: 12             
+F032  12                      NOP                             ; F032: 12             
+F033  160295                  LBRA    WTLDVI                  ; F033: 16 02 95        GET // DATA INPUT
+F036  160349                  LBRA    INIT                    ; F036: 16 03 49        INIT OF VIA, ACIA, CRTC
+F039  1602A0                  LBRA    VIARDY                  ; F039: 16 02 A0        TEST // DATA READY
+F03C  1602A6                  LBRA    JMPADR                  ; F03C: 16 02 A6        MAY BE PUT CHAR ON SCREEN
+F03F  160294                  LBRA    GDTVIE                  ; F03F: 16 02 94        GET // DATA INPUT WITH ECHO
+                      ; END OF TABLE
+                      
+                      ; SEEK    SEEKS TO THE TRACK SPECIFIED IN THE 'A' ACCUMULATOR. IN
+                      ; DOUBLE-SIDED SYSTEMS, THIS ROUTINE SHOULD ALSO SELECT THE
+                      ; CORRECT SIDE DEPENDING ON THE SECTOR NUMBER SUPPLIED IN 'B'.
+                      
+                      ; ENTRY - (A) = TRACK NUMBER
+                      ; (B) = SECTOR NUMBER
+                      
+                      ; EXIT -  (X) MAY BE DESTROYED (SEE TEXT)
+                      ; (A) MAY BE DESTROYED (SEE TEXT)
+                      ; (B) = ERROR CONDITION
+                      ; (Z) = 1 IF NO ERROR
+                      ; = 0 IF AN ERROR
+                      
+F042  6F4D            SEEK    CLR     $0D,U                   ; F042: 6F 4D           CLEAR TRY COUNTER
+F044  17011B                  LBSR    WATFDC                  ; F044: 17 01 1B        WAIT FOR FDC NOT BUSY
+F047  E743                    STB     $03,U                   ; F047: E7 43           STORE SECTOR IN REPO
+F049  B7EC07          ZF049   STA     FDCDAT                  ; F049: B7 EC 07        SET TRACK REG IN FDC
+F04C  8D27                    BSR     STLASI                  ; F04C: 8D 27           SET LATCH FOR SIDE
+F04E  E643                    LDB     $03,U                   ; F04E: E6 43           RESTORE SECTOR
+F050  F7EC06                  STB     FDCSEC                  ; F050: F7 EC 06        SEND TO FDC SECTOR REG
+F053  C614                    LDB     #$14                    ; F053: C6 14           SEEK WITH VERIF CMD
+F055  EA41                    ORB     $01,U                   ; F055: EA 41           ADD STEP RATE TO COMMAND
+F057  F7EC04                  STB     FDC                     ; F057: F7 EC 04        ISSUE CMD TO FDC
+F05A  1701A9                  LBSR    TEMPO                   ; F05A: 17 01 A9        FOR CMD EXECUTION
+F05D  170102                  LBSR    WATFDC                  ; F05D: 17 01 02        WAIT FOR FDC NOT BUSY
+F060  F6EC04                  LDB     FDC                     ; F060: F6 EC 04        LOAD STATUS REG
+F063  C410                    ANDB    #$10                    ; F063: C4 10           TEST SEEK ERROR
+F065  270D                    BEQ     ZF074                   ; F065: 27 0D           RETURN IF NO SEEK ERROR - BUT COULD OTHERS
+F067  6D4D                    TST     $0D,U                   ; F067: 6D 4D           TEST IF FIRST OR SECOND TRY
+F069  2604                    BNE     ZF06F                   ; F069: 26 04          
+F06B  8D2E                    BSR     SWIDST                  ; F06B: 8D 2E           COME HERE IF FIRST TRY - CHG DENSITY
+F06D  20DA                    BRA     ZF049                   ; F06D: 20 DA           RETRY
+F06F  8D2A            ZF06F   BSR     SWIDST                  ; F06F: 8D 2A           COME HERE IF SECOND TRY FAIL - CHG DENSITY BACK
+F071  53                      COMB                            ; F071: 53             
+F072  C610                    LDB     #$10                    ; F072: C6 10           LOAD ERROR SEEK ERROR CODE ONLY
+F074  39              ZF074   RTS                             ; F074: 39              RETURN
+                      
+                      ; SET LATCH FOR SIDE
+F075  3416            STLASI  PSHS    X,D                     ; F075: 34 16          
+F077  A643                    LDA     $03,U                   ; F077: A6 43           LOAD CURRENT SECTOR
+F079  E644                    LDB     $04,U                   ; F079: E6 44           LOAD CURRENT LATCH STATE
+F07B  C540                    BITB    #$40                    ; F07B: C5 40           CHECK IF DDEN OUTPUT = 1
+F07D  2704                    BEQ     ZF083                   ; F07D: 27 04           BRANCH IF DDEN = 0 DD
+F07F  810A                    CMPA    #$0A                    ; F07F: 81 0A           SD CASE - COMPARE SD SECT PER TRACK / SIDE
+F081  2213                    BHI     ZF096                   ; F081: 22 13           BRANCH TO SIDE 1 IF SECTOR > $0A
+F083  E6C4            ZF083   LDB     ,U                      ; F083: E6 C4           DD CASE - LOAD CURRENT DRIVE
+F085  304F                    LEAX    $0F,U                   ; F085: 30 4F           COMPUTE ADDRESS FOR DD SECTOR PER SIDE TABLE
+F087  A185                    CMPA    B,X                     ; F087: A1 85           COMPARE SECTOR NUMBER TO WHAT IS STORED IN REPO AT $0F-$10-$11 (D0-D1-D2)
+F089  220B                    BHI     ZF096                   ; F089: 22 0B           BRANCH TO SIDE 1 CASE IF HIGHER
+F08B  CC0010                  LDD     #$0010                  ; F08B: CC 00 10        PREPARE A TO NO CHANGE IN HEAD / B TO SET HEAD TO 0 AND KEEP EVERYTHING ELSE -> HEAD 0
+F08E  A74B            ZF08E   STA     $0B,U                   ; F08E: A7 4B           STORE HEAD IN USE IN REPO
+F090  17012E                  LBSR    WRTLAT                  ; F090: 17 01 2E        GO TO WRITE LATCH
+F093  5F                      CLRB                            ; F093: 5F             
+F094  3596                    PULS    PC,X,D                  ; F094: 35 96          
+                      ; SIDE 1
+F096  CC1010          ZF096   LDD     #$1010                  ; F096: CC 10 10        PREPARE A TO FORCE HEAD 1 / B TO SET HEAD TO 0 AND KEEP EVERYTHING ELSE -> HEAD 1
+F099  20F3                    BRA     ZF08E                   ; F099: 20 F3          
+                      
+                      ; SWITCH DRIVE DENSITY
+F09B  3412            SWIDST  PSHS    X,A                     ; F09B: 34 12          
+F09D  E6C4                    LDB     ,U                      ; F09D: E6 C4           LOAD CURRENT DRIVE
+F09F  3048                    LEAX    $08,U                   ; F09F: 30 48           COMPUTE DENSITY TABLE ADDRESS
+F0A1  6D85                    TST     B,X                     ; F0A1: 6D 85           TEST IF DENSITY SD FOR THIS DRIVE
+F0A3  2707                    BEQ     ZF0AC                   ; F0A3: 27 07           IF YES BRANCH
+F0A5  6F85                    CLR     B,X                     ; F0A5: 6F 85           COME HERE IF DD - SWITCH TO SD
+F0A7  17010F                  LBSR    ZF1B9                   ; F0A7: 17 01 0F        GO TO WRTLAT / SD
+F0AA  2005                    BRA     ZF0B1                   ; F0AA: 20 05          
+F0AC  6C85            ZF0AC   INC     B,X                     ; F0AC: 6C 85           COME HERE IF SD - SWITCH TO DD
+F0AE  17010D                  LBSR    ZF1BE                   ; F0AE: 17 01 0D        GO TO WRTLAT / DD
+F0B1  6C4D            ZF0B1   INC     $0D,U                   ; F0B1: 6C 4D           KEEP TRACE THAT DENSITY HAS BEEN CHANGED
+F0B3  3592                    PULS    PC,X,A                  ; F0B3: 35 92          
+                      
+                      ; READ    THIS ROUTINE READS THE SPECIFIED SECTOR INTO MEMORY AT THE
+                      ; SPECIFIED ADDRESS. THIS ROUTINE SHOULD PERFORM A SEEK
+                      ; OPERATION IF NECESSARY. A SECTOR IS 256 BYTES IN LENGTH.
+                      
+                      ; ENTRY - (X) = ADDRESS IN MEMORY WHERE SECTOR IS TO BE PLACED.
+                      ; (A) = TRACK NUMBER
+                      ; (B) = SECTOR NUMBER
+                      
+                      ; EXIT -  (X) MAY BE DESTROYED
+                      ; (A) MAY BE DESTROYED
+                      ; (B) = ERROR CONDITION
+                      ; (Z) = 1 IF NO ERROR
+                      ; = 0 IF AN ERROR
+                      
+F0B5  ED42            READ    STD     $02,U                   ; F0B5: ED 42           SAVE TRACK & SECTOR
+F0B7  F7EC06                  STB     FDCSEC                  ; F0B7: F7 EC 06        SECTOR REG
+F0BA  8DB9                    BSR     STLASI                  ; F0BA: 8D B9           SET LATCH FOR DRIVE & SIDE
+F0BC  6F4E                    CLR     $0E,U                   ; F0BC: 6F 4E           CLEAR TRY COUNTER
+F0BE  B1EC05                  CMPA    FDCTRK                  ; F0BE: B1 EC 05        TRACK REG
+F0C1  2705                    BEQ     ZF0C8                   ; F0C1: 27 05          
+F0C3  17FF7C          ZF0C3   LBSR    SEEK                    ; F0C3: 17 FF 7C        SEEK TRACK
+F0C6  261C                    BNE     ZF0E4                   ; F0C6: 26 1C          
+F0C8  8680            ZF0C8   LDA     #$80                    ; F0C8: 86 80           READ SECTOR COMMAND
+F0CA  3401                    PSHS    CC                      ; F0CA: 34 01          
+F0CC  1A50                    ORCC    #$50                    ; F0CC: 1A 50           MASK IRQ AND FIRQ
+F0CE  B7EC04                  STA     FDC                     ; F0CE: B7 EC 04        ISSUE COMMAND
+F0D1  170132                  LBSR    TEMPO                   ; F0D1: 17 01 32        FOR CMD EXECUTION
+F0D4  2005                    BRA     ZF0DB                   ; F0D4: 20 05          
+F0D6  B6EC07          ZF0D6   LDA     FDCDAT                  ; F0D6: B6 EC 07       
+F0D9  A780                    STA     ,X+                     ; F0D9: A7 80          
+F0DB  B6EC08          ZF0DB   LDA     FDCSTA                  ; F0DB: B6 EC 08       
+F0DE  2BF6                    BMI     ZF0D6                   ; F0DE: 2B F6           CONTINUE DATA READ
+F0E0  27F9                    BEQ     ZF0DB                   ; F0E0: 27 F9           CONTINUE TO WAIT ABOUT STATUS
+F0E2  3501                    PULS    CC                      ; F0E2: 35 01          
+F0E4  F6EC04          ZF0E4   LDB     FDC                     ; F0E4: F6 EC 04        LOAD STATUS REG
+F0E7  C41C                    ANDB    #$1C                    ; F0E7: C4 1C           READ OK MASK
+F0E9  270A                    BEQ     ZF0F5                   ; F0E9: 27 0A           IF OK RETURN WITH Z=1
+F0EB  6D4E                    TST     $0E,U                   ; F0EB: 6D 4E          
+F0ED  2606                    BNE     ZF0F5                   ; F0ED: 26 06           RETURN WITH Z=0 IF $0E,U NOT 0
+F0EF  6C4E                    INC     $0E,U                   ; F0EF: 6C 4E           INC TRY COUNTER
+F0F1  EC42                    LDD     $02,U                   ; F0F1: EC 42           RELOAD CURRENT TRACK AND SECTOR
+F0F3  20CE                    BRA     ZF0C3                   ; F0F3: 20 CE           DO AGAIN ONE TIME
+F0F5  39              ZF0F5   RTS                             ; F0F5: 39             
+                      
+                      ; WRITE   THIS ROUTINE WRITES THE INFORMATION FROM THE SPECIFED MEMORY
+                      ; BUFFER AREA TO THE DISK SECTOR SPECIFIED. THIS ROUTINE SHOULD
+                      ; PERFORM A SEEK OPERATION IF NECESSARY. A SECTOR IS 256 BYTES
+                      ; IN LENGTH.
+                      
+                      ; ENTRY - (X) = ADDRESS OF 256 MEMORY BUFFER CONTAINING DATA
+                      ; TO BE WRITTEN TO DISK
+                      ; (A) = TRACK NUMBER
+                      ; (B) = SECTOR NUMBER
+                      
+                      ; EXIT -  (X) MAY BE DESTROYED
+                      ; (A) MAY BE DESTROYED
+                      ; (B) = ERROR CONDITION
+                      ; (Z) = 1 IF NO ERROR
+                      ; = 0 IF AN ERROR
+                      
+F0F6  ED42            WRITE   STD     $02,U                   ; F0F6: ED 42           SAVE TRACK & SECTOR
+F0F8  F7EC06                  STB     FDCSEC                  ; F0F8: F7 EC 06        SELECT SECTOR IN FDC
+F0FB  17FF77                  LBSR    STLASI                  ; F0FB: 17 FF 77        SET LATCH FOR DRIVE & SIDE
+F0FE  6F4E                    CLR     $0E,U                   ; F0FE: 6F 4E          
+F100  B1EC05                  CMPA    FDCTRK                  ; F100: B1 EC 05        TRACK REG
+F103  2705                    BEQ     ZF10A                   ; F103: 27 05          
+F105  17FF3A          ZF105   LBSR    SEEK                    ; F105: 17 FF 3A        SEEK TRACK
+F108  261C                    BNE     ZF126                   ; F108: 26 1C          
+F10A  86A2            ZF10A   LDA     #$A2                    ; F10A: 86 A2           WRITE SECTOR WITH SIDE CMP
+F10C  3401                    PSHS    CC                      ; F10C: 34 01          
+F10E  1A50                    ORCC    #$50                    ; F10E: 1A 50           MASK IRQ AND FIRQ
+F110  B7EC04                  STA     FDC                     ; F110: B7 EC 04        ISSUE COMMAND
+F113  1700F0                  LBSR    TEMPO                   ; F113: 17 00 F0        FOR CMD EXECUTION
+F116  2003                    BRA     ZF11B                   ; F116: 20 03          
+F118  B7EC07          ZF118   STA     FDCDAT                  ; F118: B7 EC 07        STORE DATA TO WRITE
+F11B  A680            ZF11B   LDA     ,X+                     ; F11B: A6 80           LOAD NEXT DATA
+F11D  F6EC08          ZF11D   LDB     FDCSTA                  ; F11D: F6 EC 08       
+F120  2BF6                    BMI     ZF118                   ; F120: 2B F6           TEST DRQ
+F122  27F9                    BEQ     ZF11D                   ; F122: 27 F9           LOOP IF NOT
+F124  3501                    PULS    CC                      ; F124: 35 01           RESTORE CODE CONDITION
+F126  F6EC04          ZF126   LDB     FDC                     ; F126: F6 EC 04        LOAD STATUS REG
+F129  C45C                    ANDB    #$5C                    ; F129: C4 5C           WRITE ERROR MASK
+F12B  270A                    BEQ     ZF137                   ; F12B: 27 0A           RETURN IF OK WITH Z=1
+F12D  6D4E                    TST     $0E,U                   ; F12D: 6D 4E           TEST IF FIRST OR SECOND TRY
+F12F  2606                    BNE     ZF137                   ; F12F: 26 06           RETURN AFTER TWO TRY WITH Z=0
+F131  6C4E                    INC     $0E,U                   ; F131: 6C 4E           INC TRY COUNTER
+F133  EC42                    LDD     $02,U                   ; F133: EC 42           RELOAD CURRENT TRACK AND SECTOR
+F135  20CE                    BRA     ZF105                   ; F135: 20 CE           DO AGAIN ONE TIME
+F137  39              ZF137   RTS                             ; F137: 39             
+                      
+                      ; VERIFY  THE SECTOR JUST WRITTEN TO THE DISK IS TO BE VERIFIED TO
+                      ; DETERMINE IF THERE ARE CRC ERRORS. NO SEEK IS REQUIRED AS
+                      ; THIS ROUTINE WILL ONLY BE CALLED IMMEDIATELY AFTER A WRITE
+                      ; SINGLE SECTOR OPERATION.
+                      
+                      ; ENTRY - NO ENTRY PARAMETERS
+                      
+                      ; EXIT -  (X) MAY BE DESTROYED
+                      ; (A) MAY BE DESTROYED
+                      ; (B) = ERROR CONDITION
+                      ; (Z) = 1 IF NO ERROR
+                      ; = 0 IF AN ERROR
+                      
+F138  8680            VERIF   LDA     #$80                    ; F138: 86 80           READ SECTOR COMMAND
+F13A  3401                    PSHS    CC                      ; F13A: 34 01          
+F13C  1A50                    ORCC    #$50                    ; F13C: 1A 50          
+F13E  170021                  LBSR    WATFDC                  ; F13E: 17 00 21        WAIT FOR FDC NOT BUSY
+F141  B7EC04                  STA     FDC                     ; F141: B7 EC 04        ISSUE READ SECTOR CMD
+F144  1700BF                  LBSR    TEMPO                   ; F144: 17 00 BF       
+F147  170018                  LBSR    WATFDC                  ; F147: 17 00 18        WAIT FOR FDC NOT BUSY
+F14A  3501                    PULS    CC                      ; F14A: 35 01          
+F14C  F6EC04                  LDB     FDC                     ; F14C: F6 EC 04        LOAD STATUS REG
+F14F  C418                    ANDB    #$18                    ; F14F: C4 18           TEST IF NO ERROR(CRC ERROR & RECORD NOT FOUND)
+F151  39                      RTS                             ; F151: 39              RETURN WITH Z=1 IF OK OR Z=0 IF ERROR
+                      
+                      ; RESTORE A RESTORE OPERATION (ALSO KNOWN AS A "SEEK TO TRACK 00") IS TO
+                      ; BE PERFORMED ON THE SPECIFIED DRIVE. THE DRIVE IS SPECIFIED
+                      ; IN THE FCB POINTED TO BY THE CONTENTS OF THE X REGISTER. NOTE
+                      ; THAT THE DRIVE NUMBER IS THE 4TH BYTE OF THE FCB. THIS
+                      ; ROUTINE SHOULD SELECT THE DRIVE BEFORE EXECUTING THE RESTORE
+                      ; OPERATION.
+                      
+                      ; ENTRY - (X) = FCB ADDRESS (3,X CONTAINS DRIVE NUMBER)
+                      
+                      ; EXIT -  (X) MAY BE DESTROYED
+                      ; (A) MAY BE DESTROYED
+                      ; (B) = ERROR CONDITION
+                      ; (Z) = 1 IF NO ERROR
+                      ; = 0 IF AN ERROR
+                      
+F152  8D0E            RESTOR  BSR     WATFDC                  ; F152: 8D 0E           WAIT FOR FDC NOT BUSY
+F154  C600                    LDB     #$00                    ; F154: C6 00           RESTORE CMD
+F156  EA41                    ORB     $01,U                   ; F156: EA 41           ADD STEP RATE TO COMMAND
+F158  F7EC04                  STB     FDC                     ; F158: F7 EC 04        ISSUE CMD
+F15B  1700A8                  LBSR    TEMPO                   ; F15B: 17 00 A8        FOR CMD EXECUTION
+F15E  4F                      CLRA                            ; F15E: 4F             
+F15F  16FEE0                  LBRA    SEEK                    ; F15F: 16 FE E0        SEEK TRACK
+                      
+                      ; WAIT FOR FDC NOT BUSY
+F162  3404            WATFDC  PSHS    B                       ; F162: 34 04          
+F164  F6EC04          ZF164   LDB     FDC                     ; F164: F6 EC 04        LOAD STATUS REG
+F167  C401                    ANDB    #$01                    ; F167: C4 01           TEST BUSY
+F169  26F9                    BNE     ZF164                   ; F169: 26 F9           LOOP IF BUSY
+F16B  3584                    PULS    PC,B                    ; F16B: 35 84           RESTORE B AND RETURN
+                      
+                      ; SAVES TRACK NUMBER IN TABLE DE80-DE91
+                      ; TABLE MANAGED BY U REGISTER
+                      ; 0 : CURRENT DRIVE
+                      ; 1 : STEP RATE %00000011 = 30 MS
+                      ; 2 : CURRENT TRACK
+                      ; 3 : CURRENT SECTOR
+                      ; 4 : COPY OF DRIVE LATCH OUTPUT
+                      ; 5 : DRV 0 TRACK MEMORY
+                      ; 6 : DRV 1 TRACK MEMORY
+                      ; 7 : DRV 2 TRACK MEMORY
+                      ; 8 : DRV 0 DENSITY 1=DD 0=SD
+                      ; 9 : DRV 1 DENSITY
+                      ; A : DRV 2 DENSITY
+                      ; B : HEAD IN USE $00 HEAD 0 / $10 HEAD 1
+                      ; C : USE DURING BOOT - NUMBER OF TRY
+                      ; D : TRY NUMBER DURING SEEK
+                      ; E : TRY NUMBER DURING READ AND WRITE
+                      ; F : DD SECTOR PER SIDE D0
+                      ; 10 : DD SECTOR PER SIDE D1
+                      ; 11 : DD SECTOR PER SIDE D2
+                      
+                      ; STORE CURRENT DRIVE TRACK IN REPO
+F16D  3410            STTRSI  PSHS    X                       ; F16D: 34 10          
+F16F  3045                    LEAX    $05,U                   ; F16F: 30 45           LOAD X WITH TRACK TABLE BEGIN U+5
+F171  A6C4                    LDA     ,U                      ; F171: A6 C4           LOAD CURRENT DRIVE NUMBER
+F173  F6EC05                  LDB     FDCTRK                  ; F173: F6 EC 05        LOAD FDC TRACK REG
+F176  E786                    STB     A,X                     ; F176: E7 86           STORE INTO TABLE AT U+5+DRV_NUMBER
+F178  3510                    PULS    X                       ; F178: 35 10          
+F17A  CC000F                  LDD     #$000F                  ; F17A: CC 00 0F        PREPARE A FOR NO CHANGE IN DENSITY AND HEAD / B FOR DESELECT ALL DRIVES
+F17D  2042                    BRA     WRTLAT                  ; F17D: 20 42           BRANCH TO WRITE LATCH
+                      
+                      ; TABLE FOR DRIVE SELECT LATCH CODES
+F17F  010204          MF17F   FCB     $01,$02,$04             ; F17F: 01 02 04        OBVIOUSLY THE SYSTEM IS LIMITED TO 3 DRIVES
+                      
+                      ; DRIVE   THE SPECIFIED DRIVE IS TO BE SELECTED. THE DRIVE IS SPECIFIED
+                      ; IN THE FCB POINTED TO BY THE CONTENTS OF THE X REGISTER. NOTE
+                      ; THAT THE DRIVE NUMBER IS THE 4TH BYTE OF THE FCB.
+                      
+                      ; ENTRY - (X) = FCB ADDRESS (3,X CONTAINS DRIVE NUMBER)
+                      
+                      ; EXIT -  (X) MAY BE DESTROYED
+                      ; (A) MAY BE DESTROYED
+                      ; (B) = $0F IF NON-EXISTENT DRIVE
+                      ; = ERROR CONDITION OTHERWISE
+                      ; (Z) = 1 IF NO ERROR
+                      ; = 0 IF AN ERROR
+                      ; (C) = 0 IF NO ERROR
+                      ; = 1 IF AN ERROR
+                      
+F182  3412            DRVSEL  PSHS    X,A                     ; F182: 34 12          
+F184  8DE7                    BSR     STTRSI                  ; F184: 8D E7           SAVES CURRENT DRIVE TRACK NUMBER IN REPO AND DESELECT ALL DRIVES
+F186  3502                    PULS    A                       ; F186: 35 02           GET NEW DRIVE NUMBER
+F188  8103                    CMPA    #$03                    ; F188: 81 03           ENSURE IT'S < 3
+F18A  2427                    BCC     ERRDN                   ; F18A: 24 27           BRANCH TO ERROR IF A>=3
+F18C  3045                    LEAX    $05,U                   ; F18C: 30 45          
+F18E  E686                    LDB     A,X                     ; F18E: E6 86           GET NEW DRIVE TRACK NUMBER
+F190  F7EC05                  STB     FDCTRK                  ; F190: F7 EC 05        TO FDC TRACK REG
+F193  A7C4                    STA     ,U                      ; F193: A7 C4           STORE NEW DRIVE NUMBER IN TAB (POS 0)
+F195  308CE7                  LEAX    MF17F,PCR               ; F195: 30 8C E7        LATCH CODES TABLE ADDRESS
+F198  A686                    LDA     A,X                     ; F198: A6 86           LOAD LATCH CODE DEPENDING OF DRIVE NUMBER
+F19A  3402                    PSHS    A                       ; F19A: 34 02           STORE
+F19C  3048                    LEAX    $08,U                   ; F19C: 30 48           COMPUTE DRIVE DENSITY TABLE ADDRESS
+F19E  E6C4                    LDB     ,U                      ; F19E: E6 C4           LOAD NEW DRIVE NUMBER
+F1A0  E685                    LDB     B,X                     ; F1A0: E6 85           LOAD DENSITY FOR NEW DRIVE IN B
+F1A2  2704                    BEQ     ZF1A8                   ; F1A2: 27 04           BRANCH IF DENSITY IS ZERO
+F1A4  8D18                    BSR     ZF1BE                   ; F1A4: 8D 18           COME HERE IF DENSITY IS NOT 0 - WILL SET DD
+F1A6  2003                    BRA     ZF1AB                   ; F1A6: 20 03          
+F1A8  17000E          ZF1A8   LBSR    ZF1B9                   ; F1A8: 17 00 0E        COME HERE IF DENSITY IS 0 - WILL SET SD
+F1AB  3512            ZF1AB   PULS    X,A                     ; F1AB: 35 12           RESTORE CODE FOR LATCH IN A
+F1AD  C60F                    LDB     #$0F                    ; F1AD: C6 0F           PREPARE B FOR NO CHANGE IN LATCH MSB AND SET LSB TO 0
+F1AF  8D10                    BSR     WRTLAT                  ; F1AF: 8D 10           GO TO WRITE LATCH
+F1B1  5F                      CLRB                            ; F1B1: 5F              CLEAR B SET Z=1 CLEAR C
+F1B2  39                      RTS                             ; F1B2: 39              OK
+                      
+                      ; ERROR IN DRIVE NUMBER
+F1B3  3510            ERRDN   PULS    X                       ; F1B3: 35 10          
+F1B5  C6F0                    LDB     #$F0                    ; F1B5: C6 F0           LOAD ERROR CODE INVERTED Z=0
+F1B7  53                      COMB                            ; F1B7: 53              INVERT CODE AND SET C
+F1B8  39                      RTS                             ; F1B8: 39              RETURN NOT OK
+                      
+F1B9  CC4040          ZF1B9   LDD     #$4040                  ; F1B9: CC 40 40        PREPARE A TO FORCE SD / B TO SET DENSITY TO 0 AND KEEP EVERYTHING ELSE -> SD
+F1BC  2003                    BRA     WRTLAT                  ; F1BC: 20 03           GO TO SELECT DRIVE AND SIDE
+F1BE  CC0040          ZF1BE   LDD     #$0040                  ; F1BE: CC 00 40        PREPARE A TO NO CHANGE IN DENSITY / B TO SET DENSITY TO 0 AND KEEP EVERYTHING ELSE -> DD
+                      
+                      ; SELECT DRIVE & SIDE
+F1C1  3406            WRTLAT  PSHS    D                       ; F1C1: 34 06           PUSH A THEN B TO STACK
+F1C3  A461                    ANDA    $01,S                   ; F1C3: A4 61           DO A AND B -> A
+F1C5  53                      COMB                            ; F1C5: 53              B LOGICAL COMPLEMENT
+F1C6  E444                    ANDB    $04,U                   ; F1C6: E4 44           AND WITH PREVIOUS LATCH STATE - KEEP BITS WHERE B BIT WAS 0 AT CALL
+F1C8  E744                    STB     $04,U                   ; F1C8: E7 44           STORE
+F1CA  AA44                    ORA     $04,U                   ; F1CA: AA 44           ADD LATCH CODE / HEAD BIT / DENSITY BIT FOR SELECTED DRIVE
+F1CC  A744                    STA     $04,U                   ; F1CC: A7 44           STORE NEW LATCH CODE IN REPO
+F1CE  B7EC0C                  STA     DRVLAT                  ; F1CE: B7 EC 0C        WRITE NEW CODE TO LATCH
+F1D1  3586                    PULS    PC,D                    ; F1D1: 35 86          
+                      
+                      ; INIT DRIVES TABLE AND TRACK REG
+F1D3  C403            INITAB  ANDB    #$03                    ; F1D3: C4 03           B=STEP RATE / KEEP ONLY B0 & B1
+F1D5  CEDE80                  LDU     #DRVTAB                 ; F1D5: CE DE 80       
+F1D8  E741                    STB     $01,U                   ; F1D8: E7 41           STORE STEP RATE IN REPO
+F1DA  6F44                    CLR     $04,U                   ; F1DA: 6F 44           CLEAR DRIVE SELECT LATCH COPY
+F1DC  7FEC0C                  CLR     DRVLAT                  ; F1DC: 7F EC 0C        CLEAR DRIVE SELECT LATCH
+F1DF  6F4B                    CLR     $0B,U                   ; F1DF: 6F 4B          
+F1E1  6FC4                    CLR     ,U                      ; F1E1: 6F C4           CLEAR CURRENT DRIVE
+F1E3  6F45                    CLR     $05,U                   ; F1E3: 6F 45           CLEAR DRIVE 0 TRACK MEMORY
+F1E5  8601                    LDA     #$01                    ; F1E5: 86 01          
+F1E7  A748                    STA     $08,U                   ; F1E7: A7 48           SET DENSITY DD FOR DRIVE 0
+F1E9  A749                    STA     $09,U                   ; F1E9: A7 49           FOR DRIVE 1
+F1EB  A74A                    STA     $0A,U                   ; F1EB: A7 4A           FOR DRIVE 2
+F1ED  CC1010                  LDD     #$1010                  ; F1ED: CC 10 10        STORE DD SECTOR BY SIDE D0 & D1
+F1F0  ED4F                    STD     $0F,U                   ; F1F0: ED 4F           STORE DD SECTOR BY SIDE D2
+F1F2  A7C811                  STA     $11,U                   ; F1F2: A7 C8 11       
+F1F5  8601                    LDA     #$01                    ; F1F5: 86 01           RESTORE DRIVES 01 AND 00
+F1F7  3402            ZF1F7   PSHS    A                       ; F1F7: 34 02           STORE DRIVE NUMBER
+F1F9  17FF86                  LBSR    DRVSEL                  ; F1F9: 17 FF 86        SELECT DRIVE
+F1FC  3502                    PULS    A                       ; F1FC: 35 02           RESTORE DRIVE NUMBER
+F1FE  8D10                    BSR     DRVRST                  ; F1FE: 8D 10           RESTORE DRIVE
+F200  4A                      DECA                            ; F200: 4A              A-1->A
+F201  2AF4                    BPL     ZF1F7                   ; F201: 2A F4           LOOP - BRANCH IF N CLEAR (NOT NEGATIVE)
+F203  7FEC05                  CLR     FDCTRK                  ; F203: 7F EC 05        CLEAR TRACK REG
+                      
+                      ; TEMPO FOR CMD EXECUTION
+F206  170000          TEMPO   LBSR    ZF209                   ; F206: 17 00 00       
+F209  170000          ZF209   LBSR    ZF20C                   ; F209: 17 00 00       
+F20C  170000          ZF20C   LBSR    ZF20F                   ; F20C: 17 00 00       
+F20F  39              ZF20F   RTS                             ; F20F: 39             
+                      
+                      ; THIS ROUTINE IS CALL FOR D0 AND D1 ONLY AT INIT
+                      ; DO A RESTORE AND A IN DELAY TRACK 00 VERIFY
+F210  3402            DRVRST  PSHS    A                       ; F210: 34 02          
+F212  C600                    LDB     #$00                    ; F212: C6 00           DO DRIVE RESTORE
+F214  EA41                    ORB     $01,U                   ; F214: EA 41           ADD STEP RATE
+F216  F7EC04                  STB     FDC                     ; F216: F7 EC 04        SEND COMMAND TO FDC
+F219  8E5000                  LDX     #$5000                  ; F219: 8E 50 00       
+F21C  A641                    LDA     $01,U                   ; F21C: A6 41           LOAD STEP RATE
+F21E  4C                      INCA                            ; F21E: 4C             
+F21F  48                      ASLA                            ; F21F: 48             
+F220  48                      ASLA                            ; F220: 48             
+F221  48                      ASLA                            ; F221: 48             
+F222  48                      ASLA                            ; F222: 48             
+F223  C6FA                    LDB     #$FA                    ; F223: C6 FA           $FA = 250
+F225  3D                      MUL                             ; F225: 3D              A*B -> A:B (D)
+F226  308B                    LEAX    D,X                     ; F226: 30 8B           COMPUTE A*B+$5000 -> X
+F228  8DDC            ZF228   BSR     TEMPO                   ; F228: 8D DC           FOR CMD EXECUTION
+F22A  F6EC04                  LDB     FDC                     ; F22A: F6 EC 04        LOAD STATUS REG
+F22D  C404                    ANDB    #$04                    ; F22D: C4 04           TEST IF TRACK 00
+F22F  2604                    BNE     ZF235                   ; F22F: 26 04           BRANCH IF TRACK 0 REACHED
+F231  301F                    LEAX    -$01,X                  ; F231: 30 1F           DECREASE X
+F233  26F3                    BNE     ZF228                   ; F233: 26 F3           WAIT AGAIN AND RE CHECK TIL X=0
+F235  86D0            ZF235   LDA     #$D0                    ; F235: 86 D0           FORCE INTERRUPT CMD
+F237  B7EC04                  STA     FDC                     ; F237: B7 EC 04        SEND COMMAND TO FDC
+F23A  3582                    PULS    PC,A                    ; F23A: 35 82          
+                      
+                      ; LOAD BOOT SECTOR & JUMP
+F23C  C600            FLXBOT  LDB     #$00                    ; F23C: C6 00           PREPARE FOR STEP RATE 6 MS
+F23E  10CEC080                LDS     #INPBUF                 ; F23E: 10 CE C0 80     ?? LOAD FLEX INPUT BUFFER ADDRESS IN S
+F242  17FF8E                  LBSR    INITAB                  ; F242: 17 FF 8E        INIT TABLE + TRACK REG
+F245  8603                    LDA     #$03                    ; F245: 86 03           PREPARE FOR 3 LOAD TRY
+F247  A74C                    STA     $0C,U                   ; F247: A7 4C          
+F249  17FF06          ZF249   LBSR    RESTOR                  ; F249: 17 FF 06       
+F24C  8EC200                  LDX     #CMDAD2                 ; F24C: 8E C2 00        BOOT LOADER LOADED AT $C200
+F24F  CC0002                  LDD     #$0002                  ; F24F: CC 00 02        TRACK 0 SECTOR 2
+F252  ED1E                    STD     -$02,X                  ; F252: ED 1E          
+F254  ED8900FE                STD     $00FE,X                 ; F254: ED 89 00 FE    
+F258  8D24                    BSR     CHKFLX                  ; F258: 8D 24          
+F25A  260D                    BNE     ZF269                   ; F25A: 26 0D           IF NO 'FLEX' FOUND BOOT LOADER STAY ONLY ON SECTOR 1
+F25C  8EC100                  LDX     #CMDAD1                 ; F25C: 8E C1 00        BOOT LOADER LOADED AT $C100
+F25F  CC0001                  LDD     #$0001                  ; F25F: CC 00 01        TRACK 0 SECTOR 1
+F262  8D1A                    BSR     CHKFLX                  ; F262: 8D 1A          
+F264  2610                    BNE     ZF276                   ; F264: 26 10          
+F266  7EC200                  JMP     CMDAD2                  ; F266: 7E C2 00        JUMP TO BOOT LOADER $C200
+F269  8EC100          ZF269   LDX     #CMDAD1                 ; F269: 8E C1 00        BOOT LOADER LOADED AT $C100
+F26C  CC0001                  LDD     #$0001                  ; F26C: CC 00 01        TRACK 0 SECTOR 1
+F26F  8D0D                    BSR     CHKFLX                  ; F26F: 8D 0D          
+F271  2603                    BNE     ZF276                   ; F271: 26 03          
+F273  7EC100                  JMP     CMDAD1                  ; F273: 7E C1 00        JUMP TO BOOT LOADER $C100
+F276  6A4C            ZF276   DEC     $0C,U                   ; F276: 6A 4C           NO 'FLEX' STRING FOUND IN MEMORY
+F278  26CF                    BNE     ZF249                   ; F278: 26 CF           DO ANOTHER TRY
+F27A  6E9FFFFE                JMP     [RESET]                 ; F27A: 6E 9F FF FE     3 SUCCESSIVE FAILS - RESET
+                      
+                      ; LOAD AND CHECK 'FLEX' IS IN MEMORY - RETURN Z=0 IF NOT FOUND
+F27E  17FE42          CHKFLX  LBSR    ZF0C3                   ; F27E: 17 FE 42        GO TO SECTOR READ ROUTINE
+F281  260E                    BNE     ZF291                   ; F281: 26 0E           END ROUTINE IF READ FAIL
+F283  EC83                    LDD     ,--X                    ; F283: EC 83          
+F285  10834558                CMPD    #$4558                  ; F285: 10 83 45 58     COMPARE TO 'EX'
+F289  2606                    BNE     ZF291                   ; F289: 26 06          
+F28B  EC83                    LDD     ,--X                    ; F28B: EC 83          
+F28D  1083464C                CMPD    #$464C                  ; F28D: 10 83 46 4C     COMPARE TO 'FL'
+F291  39              ZF291   RTS                             ; F291: 39             
+                      
+                      ; TEST SERIAL DATA READY
+F292  3402            DATRDY  PSHS    A                       ; F292: 34 02          
+F294  B6EF60                  LDA     ACIASR                  ; F294: B6 EF 60        LOAD STATUS REGISTER
+F297  8401                    ANDA    #$01                    ; F297: 84 01           GET DATA RECEIVE DATA REG FULL
+F299  3582                    PULS    PC,A                    ; F299: 35 82          
+                      
+                      ; INIT ACIA
+F29B  8603            INIACI  LDA     #$03                    ; F29B: 86 03           RESET ACIA CODE
+F29D  B7EF60                  STA     ACIASR                  ; F29D: B7 EF 60        STORE INTO CONTROL REGISTER
+F2A0  8611                    LDA     #$11                    ; F2A0: 86 11           SET CONTROL 8N2 DIV 16
+F2A2  B7EF60                  STA     ACIASR                  ; F2A2: B7 EF 60        REGISTER UP
+F2A5  39                      RTS                             ; F2A5: 39             
+                      
+                      ; WAIT FOR AND GET SERIAL DATA
+F2A6  3404            GETDTA  PSHS    B                       ; F2A6: 34 04           SAVE B REG
+F2A8  F6EF60          ZF2A8   LDB     ACIASR                  ; F2A8: F6 EF 60        LOAD STATUS REGISTER
+F2AB  C501                    BITB    #$01                    ; F2AB: C5 01           TEST DATA RECEIVE DATA REG FULL
+F2AD  27F9                    BEQ     ZF2A8                   ; F2AD: 27 F9           LOOP IF EMPTY
+F2AF  B6EF61                  LDA     ACIADR                  ; F2AF: B6 EF 61        LOAD DATA BYTE
+F2B2  C470                    ANDB    #$70                    ; F2B2: C4 70           CHECK ERRORS
+F2B4  26F2                    BNE     ZF2A8                   ; F2B4: 26 F2           LOOP IF ERROR
+F2B6  847F                    ANDA    #$7F                    ; F2B6: 84 7F           MASK FOR 7 BITS DATA
+F2B8  3584                    PULS    PC,B                    ; F2B8: 35 84           RESTORE B REG AND RETURN
+                      
+                      ; GET SERIAL DATA WITH ECHO
+F2BA  8DEA            GDTAEC  BSR     GETDTA                  ; F2BA: 8D EA           GET DATA
+                      
+                      ; SEND SERIAL DATA WITH ACIA
+F2BC  3402            WRTDTA  PSHS    A                       ; F2BC: 34 02           SAVE REG A
+F2BE  B6EF60          ZF2BE   LDA     ACIASR                  ; F2BE: B6 EF 60        LOAD STATUS REGISTER
+F2C1  8502                    BITA    #$02                    ; F2C1: 85 02           TEST TRANSMIT DATA REG EMPTY
+F2C3  27F9                    BEQ     ZF2BE                   ; F2C3: 27 F9           LOOP IF NOT EMPTY
+F2C5  3502                    PULS    A                       ; F2C5: 35 02           RESTORE REG A
+F2C7  B7EF61                  STA     ACIADR                  ; F2C7: B7 EF 61        SEND TO TRANSMIT DATA REG
+F2CA  39                      RTS                             ; F2CA: 39             
+                      
+                      ; WAIT AND LOAD DATA FROM VIA
+F2CB  B6EF8D          WTLDVI  LDA     VIA_13                  ; F2CB: B6 EF 8D        LOAD IFR REG
+F2CE  8502                    BITA    #$02                    ; F2CE: 85 02           TEST IF CAR READY
+F2D0  27F9                    BEQ     WTLDVI                  ; F2D0: 27 F9           LOOP IF EMPTY
+F2D2  B6EF81                  LDA     VIA_1                   ; F2D2: B6 EF 81        LOAD DATA
+F2D5  39                      RTS                             ; F2D5: 39             
+                      
+                      ; GET PARALLEL DATA FROM VIA WITH ECHO
+F2D6  8DF3            GDTVIE  BSR     WTLDVI                  ; F2D6: 8D F3           GET PARALLEL DATA
+F2D8  17000A                  LBSR    JMPADR                  ; F2D8: 17 00 0A        DISPLAY CHAR
+F2DB  39                      RTS                             ; F2DB: 39             
+                      
+                      ; TEST PARALLEL DATA READY OUTPUT YES Z=1 NO Z=0
+F2DC  3402            VIARDY  PSHS    A                       ; F2DC: 34 02           SAVE REG A
+F2DE  B6EF8D                  LDA     VIA_13                  ; F2DE: B6 EF 8D        LOAD STATUS REGISTER
+F2E1  8502                    BITA    #$02                    ; F2E1: 85 02           TEST IF CAR READY
+F2E3  3582                    PULS    PC,A                    ; F2E3: 35 82           RESTORE REG A AND RETURN
+                      
+                      ; JUMP TO ADDRESS (DEPENDING OF THE CHAR RECEIVED)
+F2E5  6E9FDE92        JMPADR  JMP     [GRADDR]                ; F2E5: 6E 9F DE 92    
+                      
+                      ; INIT OF THE CRTC 6845
+F2E9  3416            INICRT  PSHS    X,D                     ; F2E9: 34 16          
+F2EB  4F                      CLRA                            ; F2EB: 4F             
+F2EC  8EF310                  LDX     #MF310                  ; F2EC: 8E F3 10        LOAD PARAMETER TABLE
+F2EF  B7EC00          ZF2EF   STA     CRTC                    ; F2EF: B7 EC 00        STORE REG NUMBER IN CRTC
+F2F2  E680                    LDB     ,X+                     ; F2F2: E6 80           LOAD PARAMETER
+F2F4  F7EC01                  STB     CRTC_1                  ; F2F4: F7 EC 01        STORE PARAMETER IN CRTC
+F2F7  4C                      INCA                            ; F2F7: 4C              NEXT REG
+F2F8  8110                    CMPA    #$10                    ; F2F8: 81 10           END OF TABLE
+F2FA  26F3                    BNE     ZF2EF                   ; F2FA: 26 F3           LOOP
+F2FC  8E0000                  LDX     #$0000                  ; F2FC: 8E 00 00       
+F2FF  BFDE96                  STX     CURPOS                  ; F2FF: BF DE 96       
+F302  BFDE94                  STX     SCORAD                  ; F302: BF DE 94       
+F305  BFDE9A                  STX     MDE9A                   ; F305: BF DE 9A       
+F308  BFDE98                  STX     CURROW                  ; F308: BF DE 98       
+F30B  7FDEA9                  CLR     MDEA9                   ; F30B: 7F DE A9       
+F30E  3596                    PULS    PC,X,D                  ; F30E: 35 96          
+                      
+                      ; CRTC INIT PARAMETERS (ORIGINAL FROM ELEKTOR)
+F310  63              MF310   FCB     $63                     ; F310: 63              TOTAL HORIZONTAL
+F311  50                      FCB     $50                     ; F311: 50              AFFICHAGE HORIZONTAL 80
+F312  57                      FCB     $57                     ; F312: 57              H SYNC POSITION 100
+F313  03                      FCB     $03                     ; F313: 03              LARGEUR SYNC
+F314  19                      FCB     $19                     ; F314: 19              TOTAL VERTICAL
+F315  07                      FCB     $07                     ; F315: 07              V TOTAL ADJUST
+F316  18                      FCB     $18                     ; F316: 18              AFFICHAGE VERTICAL 24
+F317  18                      FCB     $18                     ; F317: 18              V SYNC POSITION
+F318  00                      FCB     $00                     ; F318: 00              MODE INTERLACE 0
+F319  0B                      FCB     $0B                     ; F319: 0B              LINE MAX SCAN ADRESSE
+F31A  68                      FCB     $68                     ; F31A: 68              CURSOR START
+F31B  0B                      FCB     $0B                     ; F31B: 0B              CURSOR END
+F31C  00                      FCB     $00                     ; F31C: 00              START H
+F31D  00                      FCB     $00                     ; F31D: 00              START L
+F31E  00                      FCB     $00                     ; F31E: 00              CURSOR START H
+F31F  00                      FCB     $00                     ; F31F: 00              CURSOR START L
+F320  50                      FCB     $50                     ; F320: 50             
+F321  17                      FCB     $17                     ; F321: 17             
+                      
+                      ; THIS IS 6845 CRTC PHILIPPE'S TABLE FOR LCD SCREEN
+                      ; MF310   FCB     $69                     ; TOTAL HORIZONTAL
+                      ; FCB     $50                     ; AFFICHAGE HORIZONTAL 80
+                      ; FCB     $57                     ; H SYNC POSITION 100
+                      ; FCB     $08                     ; LARGEUR SYNC
+                      ; FCB     $21                     ; TOTAL VERTICAL
+                      ; FCB     $06                     ; V TOTAL ADJUST
+                      ; FCB     $18                     ; AFFICHAGE VERTICAL 24
+                      ; FCB     $1C                     ; V SYNC POSITION
+                      ; FCB     $00                     ; MODE INTERLACE 0
+                      ; FCB     $09                     ; LINE MAX SCAN ADRESSE
+                      ; FCB     $60                     ; CURSOR START
+                      ; FCB     $09                     ; CURSOR END
+                      ; FCB     $00                     ; START H
+                      ; FCB     $00                     ; START L
+                      ; FCB     $00                     ; CURSOR START H
+                      ; FCB     $00                     ; CURSOR START L
+                      ; FCB     $50
+                      ; FCB     $17
+                      
+                      ; TABLE USED FOR SCREEN MANAGEMENT
+                      ; $DE92     ADDRESS TO BE CALLED FOR NEXT RECEIVED CHAR MANAGEMENT MSB  GRADDR
+                      ; $DE93     ADDRESS TO BE CALLED FOR NEXT RECEIVED CHAR MANAGEMENT LSB
+                      ; $DE94     SCREEN ORIGINE ADDRESS IN RAM LSB                           SCORAD
+                      ; $DE95     SCREEN ORIGINE ADDRESS IN RAM MSB
+                      ; $DE96     CURSOR ADDRESS IN RAM LSB                                   CURPOS
+                      ; $DE97     CURSOR ADDRESS IN RAM MSB
+                      ; $DE98     CURSOR ROW                                                  CURROW
+                      ; $DE99     CURSOR LINE                                                 CURLIN
+                      ; $DEA0
+                      ; $DEA1
+                      ; $DEA2
+                      ; $DEA3
+                      ; $DEA4
+                      ; $DEA5
+                      ; $DEA6
+                      ; $DEA7
+                      ; $DEA8
+                      ; $DEA9
+                      
+                      ; SCREEN CLEAR (SET X TO 0 AND Y TO $7FF AND CALL PUTSXY)
+F322  3420            DELSCR  PSHS    Y                       ; F322: 34 20          
+F324  8E0000                  LDX     #$0000                  ; F324: 8E 00 00       
+F327  108E07FF                LDY     #$07FF                  ; F327: 10 8E 07 FF    
+F32B  BDF442                  JSR     PUTSXY                  ; F32B: BD F4 42       
+F32E  35A0                    PULS    PC,Y                    ; F32E: 35 A0          
+                      
+                      ; WRITE ORIGIN ADDRESS AND CURSOR POSITION INTO CRTC
+F330  C60C            CURCRT  LDB     #$0C                    ; F330: C6 0C           $0C = 12 LOAD CURSOR ADDRESS IN CRTC RAM
+F332  8EDE94                  LDX     #SCORAD                 ; F332: 8E DE 94        CURSOR ADDRESS IN RAM
+F335  A680            ZF335   LDA     ,X+                     ; F335: A6 80           DO IT 4X SO LOAD SCORAD, SCORAD+1, CURPOS, CURPOS+1 (DE94-DE97)
+F337  F7EC00                  STB     CRTC                    ; F337: F7 EC 00       
+F33A  B7EC01                  STA     CRTC_1                  ; F33A: B7 EC 01       
+F33D  5C                      INCB                            ; F33D: 5C             
+F33E  C110                    CMPB    #$10                    ; F33E: C1 10           STOP BEFORE CRTC ADDRESS 16
+F340  26F3                    BNE     ZF335                   ; F340: 26 F3          
+F342  39                      RTS                             ; F342: 39             
+                      
+                      ; DEAL WITH ONE LINE UP
+F343  BDF664          ZF343   JSR     ZF664                   ; F343: BD F6 64       
+F346  7ADE99                  DEC     CURLIN                  ; F346: 7A DE 99       
+F349  FCDE94                  LDD     SCORAD                  ; F349: FC DE 94       
+F34C  C30050                  ADDD    #$0050                  ; F34C: C3 00 50       
+F34F  FDDE94                  STD     SCORAD                  ; F34F: FD DE 94       
+F352  20DC                    BRA     CURCRT                  ; F352: 20 DC          
+                      
+F354  7DDEA4          ZF354   TST     MDEA4                   ; F354: 7D DE A4       
+F357  2646                    BNE     CHRVID                  ; F357: 26 46          
+F359  3402                    PSHS    A                       ; F359: 34 02          
+F35B  FCDE96                  LDD     CURPOS                  ; F35B: FC DE 96       
+F35E  8407                    ANDA    #$07                    ; F35E: 84 07           MAX IS $7FF
+F360  1F01                    TFR     D,X                     ; F360: 1F 01          
+F362  3502                    PULS    A                       ; F362: 35 02          
+F364  207A                    BRA     ZF3E0                   ; F364: 20 7A          
+                      
+                      ; CODE ESC z - PERFORM VARIOUS SCREEN AND VIA INIT
+F366  BDF2E9          ESC_z   JSR     INICRT                  ; F366: BD F2 E9        GO TO 6845 INIT
+F369  7FDEA4                  CLR     MDEA4                   ; F369: 7F DE A4       
+F36C  7FDEA5                  CLR     MDEA5                   ; F36C: 7F DE A5       
+F36F  7FDEA7                  CLR     MDEA7                   ; F36F: 7F DE A7       
+F372  8668                    LDA     #$68                    ; F372: 86 68          
+F374  B7DEA8                  STA     MDEA8                   ; F374: B7 DE A8       
+F377  BDF5AC                  JSR     ESC_G                   ; F377: BD F5 AC       
+F37A  8649                    LDA     #$49                    ; F37A: 86 49           SELECT SERIAL SPEED IN TABLE FOR VIA
+F37C  BDF690                  JSR     VIAINI                  ; F37C: BD F6 90       
+F37F  7EF63E                  JMP     ESC_E                   ; F37F: 7E F6 3E        GO TO CLEAR SCREEN AND CURSOR TO HOME
+                      
+                      ; ?? MAY BE WARM
+F382  8DE2            INIT    BSR     ESC_z                   ; F382: 8D E2           GO TO SCREEN AND VIA INIT
+F384  7FEC0C                  CLR     DRVLAT                  ; F384: 7F EC 0C        CLEAR DRIVE SELECT LATCH
+F387  CCF702                  LDD     #CHRSCR                 ; F387: CC F7 02       
+F38A  FDDE92                  STD     GRADDR                  ; F38A: FD DE 92        SET GRADDR TO $F702 FOR NEXT CHAR
+F38D  39                      RTS                             ; F38D: 39             
+                      
+                      ; ???
+F38E  FCDE94          ZF38E   LDD     SCORAD                  ; F38E: FC DE 94       
+F391  830050                  SUBD    #$0050                  ; F391: 83 00 50       
+F394  FDDE94                  STD     SCORAD                  ; F394: FD DE 94       
+F397  BDF667                  JSR     ZF667                   ; F397: BD F6 67       
+F39A  7CDE99                  INC     CURLIN                  ; F39A: 7C DE 99       
+F39D  2091                    BRA     CURCRT                  ; F39D: 20 91          
+                      
+                      ; HERE THE CHAR IS PUT INTO VIDEO RAM
+F39F  3402            CHRVID  PSHS    A                       ; F39F: 34 02          
+F3A1  BEDE96                  LDX     CURPOS                  ; F3A1: BE DE 96       
+F3A4  C64F                    LDB     #$4F                    ; F3A4: C6 4F          
+F3A6  F0DE98                  SUBB    CURROW                  ; F3A6: F0 DE 98       
+F3A9  3404                    PSHS    B                       ; F3A9: 34 04          
+F3AB  3085                    LEAX    B,X                     ; F3AB: 30 85          
+F3AD  BDF5F8                  JSR     LIMITX                  ; F3AD: BD F5 F8       
+F3B0  3504                    PULS    B                       ; F3B0: 35 04          
+F3B2  5D                      TSTB                            ; F3B2: 5D             
+F3B3  2729                    BEQ     ZF3DE                   ; F3B3: 27 29          
+F3B5  301F            ZF3B5   LEAX    -$01,X                  ; F3B5: 30 1F          
+F3B7  8C0000                  CMPX    #$0000                  ; F3B7: 8C 00 00       
+F3BA  2A13                    BPL     ZF3CF                   ; F3BA: 2A 13          
+F3BC  8E07FF                  LDX     #$07FF                  ; F3BC: 8E 07 FF       
+F3BF  A689E000                LDA     VIDRAM,X                ; F3BF: A6 89 E0 00    
+F3C3  8E0000                  LDX     #$0000                  ; F3C3: 8E 00 00       
+F3C6  A789E000                STA     VIDRAM,X                ; F3C6: A7 89 E0 00    
+F3CA  8E07FF                  LDX     #$07FF                  ; F3CA: 8E 07 FF       
+F3CD  200C                    BRA     ZF3DB                   ; F3CD: 20 0C          
+F3CF  A689E000        ZF3CF   LDA     VIDRAM,X                ; F3CF: A6 89 E0 00    
+F3D3  3001                    LEAX    $01,X                   ; F3D3: 30 01          
+F3D5  A789E000                STA     VIDRAM,X                ; F3D5: A7 89 E0 00    
+F3D9  301F                    LEAX    -$01,X                  ; F3D9: 30 1F          
+F3DB  5A              ZF3DB   DECB                            ; F3DB: 5A             
+F3DC  26D7                    BNE     ZF3B5                   ; F3DC: 26 D7          
+F3DE  3502            ZF3DE   PULS    A                       ; F3DE: 35 02          
+                      
+                      ; ???
+F3E0  815E            ZF3E0   CMPA    #$5E                    ; F3E0: 81 5E          
+F3E2  2503                    BCS     ZF3E7                   ; F3E2: 25 03          
+F3E4  BBDEA6                  ADDA    MDEA6                   ; F3E4: BB DE A6       
+F3E7  BADEA5          ZF3E7   ORA     MDEA5                   ; F3E7: BA DE A5       
+F3EA  A789E000                STA     VIDRAM,X                ; F3EA: A7 89 E0 00    
+F3EE  F6DE98                  LDB     CURROW                  ; F3EE: F6 DE 98       
+F3F1  C14F                    CMPB    #$4F                    ; F3F1: C1 4F           COMPARE TO 79
+F3F3  102500BE                LBCS    CURRIG                  ; F3F3: 10 25 00 BE    
+F3F7  7DDEA7                  TST     MDEA7                   ; F3F7: 7D DE A7       
+F3FA  10270252                LBEQ    ZF650                   ; F3FA: 10 27 02 52    
+F3FE  7EF4B5                  JMP     CURRIG                  ; F3FE: 7E F4 B5       
+                      
+                      ; DELETE SCREEN FROM CURSOR TO END OF LINE ESC K
+F401  3420            DELEOL  PSHS    Y                       ; F401: 34 20          
+F403  BEDE96                  LDX     CURPOS                  ; F403: BE DE 96       
+F406  C64F                    LDB     #$4F                    ; F406: C6 4F           $4F = 79 LAST ROW NUMBER
+F408  F0DE98                  SUBB    CURROW                  ; F408: F0 DE 98       
+F40B  3185                    LEAY    B,X                     ; F40B: 31 85          
+F40D  8D33                    BSR     PUTSXY                  ; F40D: 8D 33          
+F40F  35A0                    PULS    PC,Y                    ; F40F: 35 A0          
+                      
+                      ; CODE ESC o
+F411  3420            ESC_o   PSHS    Y                       ; F411: 34 20          
+F413  BEDE9A                  LDX     MDE9A                   ; F413: BE DE 9A       
+F416  10BEDE96        ZF416   LDY     CURPOS                  ; F416: 10 BE DE 96    
+F41A  8D26                    BSR     PUTSXY                  ; F41A: 8D 26          
+F41C  35A0                    PULS    PC,Y                    ; F41C: 35 A0          
+                      
+                      ; CODE ESC l
+F41E  3420            ESC_l   PSHS    Y                       ; F41E: 34 20          
+F420  BEDE9A                  LDX     MDE9A                   ; F420: BE DE 9A       
+F423  31884F                  LEAY    $4F,X                   ; F423: 31 88 4F       
+F426  8D1A                    BSR     PUTSXY                  ; F426: 8D 1A          
+F428  35A0                    PULS    PC,Y                    ; F428: 35 A0          
+                      
+                      ; CODE ESC b
+F42A  3420            ESC_b   PSHS    Y                       ; F42A: 34 20          
+F42C  BEDE94                  LDX     SCORAD                  ; F42C: BE DE 94       
+F42F  20E5                    BRA     ZF416                   ; F42F: 20 E5          
+                      
+                      ; ERASE SCREEN FROM CURSOR TO END OF SCREEN ESC J
+F431  3420            DELEOS  PSHS    Y                       ; F431: 34 20          
+F433  BEDE96                  LDX     CURPOS                  ; F433: BE DE 96       
+F436  10BEDE94                LDY     SCORAD                  ; F436: 10 BE DE 94    
+F43A  31A90780                LEAY    $0780,Y                 ; F43A: 31 A9 07 80     $780 = 24 LINES X 80 ROWS
+F43E  8D02                    BSR     PUTSXY                  ; F43E: 8D 02          
+F440  35A0                    PULS    PC,Y                    ; F440: 35 A0          
+                      
+                      ; FILL SCREEN WITH SPACE CHAR $20 FROM X TO Y
+F442  BDF5F8          PUTSXY  JSR     LIMITX                  ; F442: BD F5 F8        LIMIT X TO $07FF
+F445  1F20                    TFR     Y,D                     ; F445: 1F 20          
+F447  8407                    ANDA    #$07                    ; F447: 84 07           MAX FOR D IS $07FF
+F449  3406                    PSHS    D                       ; F449: 34 06          
+F44B  8620                    LDA     #$20                    ; F44B: 86 20           LOAD SPACE CHAR IN A
+F44D  A789E000        ZF44D   STA     VIDRAM,X                ; F44D: A7 89 E0 00    
+F451  3001                    LEAX    $01,X                   ; F451: 30 01          
+F453  8C0800                  CMPX    #$0800                  ; F453: 8C 08 00        COMPARE TO END OF VIDEO RAM
+F456  2603                    BNE     ZF45B                   ; F456: 26 03          
+F458  8E0000                  LDX     #$0000                  ; F458: 8E 00 00        AFTER $0800 CONTINUE WITH $0000
+F45B  ACE4            ZF45B   CMPX    ,S                      ; F45B: AC E4           COMPARE X WITH LAST PUSH -> WITH D
+F45D  26EE                    BNE     ZF44D                   ; F45D: 26 EE          
+F45F  A789E000                STA     VIDRAM,X                ; F45F: A7 89 E0 00    
+F463  35A0                    PULS    PC,Y                    ; F463: 35 A0          
+                      
+                      ; CODE ESC N
+F465  FCDE96          ESC_N   LDD     CURPOS                  ; F465: FC DE 96       
+F468  8407                    ANDA    #$07                    ; F468: 84 07           MAX IS $7FF
+F46A  1F01                    TFR     D,X                     ; F46A: 1F 01          
+F46C  F6DE98                  LDB     CURROW                  ; F46C: F6 DE 98       
+F46F  C14F            ZF46F   CMPB    #$4F                    ; F46F: C1 4F          
+F471  272A                    BEQ     ZF49D                   ; F471: 27 2A          
+F473  8C07FF                  CMPX    #$07FF                  ; F473: 8C 07 FF       
+F476  2614                    BNE     ZF48C                   ; F476: 26 14          
+F478  3410                    PSHS    X                       ; F478: 34 10          
+F47A  8E0000                  LDX     #$0000                  ; F47A: 8E 00 00       
+F47D  A689E000                LDA     VIDRAM,X                ; F47D: A6 89 E0 00    
+F481  3510                    PULS    X                       ; F481: 35 10          
+F483  A789E000                STA     VIDRAM,X                ; F483: A7 89 E0 00    
+F487  8E0000                  LDX     #$0000                  ; F487: 8E 00 00       
+F48A  200E                    BRA     ZF49A                   ; F48A: 20 0E          
+F48C  3001            ZF48C   LEAX    $01,X                   ; F48C: 30 01          
+F48E  A689E000                LDA     VIDRAM,X                ; F48E: A6 89 E0 00    
+F492  301F                    LEAX    -$01,X                  ; F492: 30 1F          
+F494  A789E000                STA     VIDRAM,X                ; F494: A7 89 E0 00    
+F498  3001                    LEAX    $01,X                   ; F498: 30 01          
+F49A  5C              ZF49A   INCB                            ; F49A: 5C             
+F49B  20D2                    BRA     ZF46F                   ; F49B: 20 D2          
+F49D  8620            ZF49D   LDA     #$20                    ; F49D: 86 20          
+F49F  A789E000                STA     VIDRAM,X                ; F49F: A7 89 E0 00    
+F4A3  39                      RTS                             ; F4A3: 39             
+                      
+                      ; MOVE CURSOR ONE CHAR LEFT ESC D
+F4A4  7DDE98          CURLEF  TST     CURROW                  ; F4A4: 7D DE 98        CHECK IF CURSOR AT FIRST ROW (0)
+F4A7  270B                    BEQ     ZF4B4                   ; F4A7: 27 0B          
+F4A9  7ADE98                  DEC     CURROW                  ; F4A9: 7A DE 98       
+F4AC  FCDE96                  LDD     CURPOS                  ; F4AC: FC DE 96       
+F4AF  830001                  SUBD    #$0001                  ; F4AF: 83 00 01       
+F4B2  2011                    BRA     ZF4C5                   ; F4B2: 20 11          
+F4B4  39              ZF4B4   RTS                             ; F4B4: 39             
+                      
+                      ; MOVE CURSOR ONE CHAR RIGHT ESC C
+F4B5  B6DE98          CURRIG  LDA     CURROW                  ; F4B5: B6 DE 98       
+F4B8  814F                    CMPA    #$4F                    ; F4B8: 81 4F           $4F=79 CHECK IF CURSOR AT LAST ROW
+F4BA  24F8                    BCC     ZF4B4                   ; F4BA: 24 F8          
+F4BC  7CDE98                  INC     CURROW                  ; F4BC: 7C DE 98       
+F4BF  FCDE96                  LDD     CURPOS                  ; F4BF: FC DE 96       
+F4C2  C30001                  ADDD    #$0001                  ; F4C2: C3 00 01       
+F4C5  FDDE96          ZF4C5   STD     CURPOS                  ; F4C5: FD DE 96       
+F4C8  7EF330                  JMP     CURCRT                  ; F4C8: 7E F3 30       
+                      
+                      ; MOVE CURSOR ONE LINE DOWN ESC B
+F4CB  8617            CURDWN  LDA     #$17                    ; F4CB: 86 17           $17 = 24 CHECK IF CURSOR AT LAST LINE
+F4CD  B1DE99                  CMPA    CURLIN                  ; F4CD: B1 DE 99       
+F4D0  23E2                    BLS     ZF4B4                   ; F4D0: 23 E2          
+F4D2  7CDE99                  INC     CURLIN                  ; F4D2: 7C DE 99       
+F4D5  8D03                    BSR     ZF4DA                   ; F4D5: 8D 03          
+F4D7  7EF330                  JMP     CURCRT                  ; F4D7: 7E F3 30       
+                      
+                      ; DEAL WITH LINE FEED AND CURSOR DOWN
+F4DA  FCDE96          ZF4DA   LDD     CURPOS                  ; F4DA: FC DE 96       
+F4DD  C30050                  ADDD    #$0050                  ; F4DD: C3 00 50        $50 = DECIMAL 80
+F4E0  FDDE96                  STD     CURPOS                  ; F4E0: FD DE 96       
+F4E3  FCDE9A                  LDD     MDE9A                   ; F4E3: FC DE 9A       
+F4E6  C30050                  ADDD    #$0050                  ; F4E6: C3 00 50       
+F4E9  FDDE9A                  STD     MDE9A                   ; F4E9: FD DE 9A       
+F4EC  39                      RTS                             ; F4EC: 39             
+                      
+                      ; MOVE CURSOR ONE LINE UP ESC A
+F4ED  B6DE99          CURSUP  LDA     CURLIN                  ; F4ED: B6 DE 99       
+F4F0  27C2                    BEQ     ZF4B4                   ; F4F0: 27 C2          
+F4F2  7ADE99          ZF4F2   DEC     CURLIN                  ; F4F2: 7A DE 99       
+F4F5  FCDE96                  LDD     CURPOS                  ; F4F5: FC DE 96       
+F4F8  830050                  SUBD    #$0050                  ; F4F8: 83 00 50        $50 = DECIMAL 80
+F4FB  FDDE96                  STD     CURPOS                  ; F4FB: FD DE 96       
+F4FE  FCDE9A                  LDD     MDE9A                   ; F4FE: FC DE 9A       
+F501  830050                  SUBD    #$0050                  ; F501: 83 00 50        $50 = DECIMAL 80
+F504  FDDE9A                  STD     MDE9A                   ; F504: FD DE 9A       
+F507  7EF330                  JMP     CURCRT                  ; F507: 7E F3 30       
+                      
+                      ; REVERSE LINE FEED ESC I
+F50A  B6DE99          REVELF  LDA     CURLIN                  ; F50A: B6 DE 99       
+F50D  26E3                    BNE     ZF4F2                   ; F50D: 26 E3          
+F50F  BDF38E                  JSR     ZF38E                   ; F50F: BD F3 8E       
+F512  B6DE99                  LDA     CURLIN                  ; F512: B6 DE 99       
+F515  20DB                    BRA     ZF4F2                   ; F515: 20 DB          
+                      
+                      ; CODE ESC j
+F517  FCDE96          ESC_j   LDD     CURPOS                  ; F517: FC DE 96       
+F51A  FDDE9E                  STD     MDE9E                   ; F51A: FD DE 9E       
+F51D  FCDE94                  LDD     SCORAD                  ; F51D: FC DE 94       
+F520  FDDE9C                  STD     MDE9C                   ; F520: FD DE 9C       
+F523  FCDE9A                  LDD     MDE9A                   ; F523: FC DE 9A       
+F526  FDDEA2                  STD     MDEA2                   ; F526: FD DE A2       
+F529  FCDE98                  LDD     CURROW                  ; F529: FC DE 98       
+F52C  FDDEA0                  STD     MDEA0                   ; F52C: FD DE A0       
+F52F  39                      RTS                             ; F52F: 39             
+                      
+                      ; CODE ESC k
+                      ; ???
+F530  FCDE9E          ESC_k   LDD     MDE9E                   ; F530: FC DE 9E       
+F533  FDDE96                  STD     CURPOS                  ; F533: FD DE 96       
+F536  FCDE9C                  LDD     MDE9C                   ; F536: FC DE 9C       
+F539  FDDE94                  STD     SCORAD                  ; F539: FD DE 94       
+F53C  FCDEA2                  LDD     MDEA2                   ; F53C: FC DE A2       
+F53F  FDDE9A                  STD     MDE9A                   ; F53F: FD DE 9A       
+F542  FCDEA0                  LDD     MDEA0                   ; F542: FC DE A0       
+F545  FDDE98                  STD     CURROW                  ; F545: FD DE 98       
+F548  7EF330                  JMP     CURCRT                  ; F548: 7E F3 30       
+                      
+                      ; CHAR MGNT AFTER CODE ESC Y
+                      ; "ESC Y LIN ROW" MOVE CURSOR TO POSITION LIN ROW
+                      ; HERE LIN MANAGEMENT
+F54B  3406            ESC_Y   PSHS    D                       ; F54B: 34 06          
+F54D  8020                    SUBA    #$20                    ; F54D: 80 20           ASCII CODE TO HEX NUMBER
+F54F  8118                    CMPA    #$18                    ; F54F: 81 18           COMPARE TO 24
+F551  2409                    BCC     ZF55C                   ; F551: 24 09          
+F553  B7DE99                  STA     CURLIN                  ; F553: B7 DE 99       
+F556  CCF55E                  LDD     #MF55E                  ; F556: CC F5 5E       
+F559  FDDE92                  STD     GRADDR                  ; F559: FD DE 92        CHANGE JMADDR TO $F55E FOR NEXT CHAR
+F55C  3586            ZF55C   PULS    PC,D                    ; F55C: 35 86          
+                      
+                      ; CHAR MGNT AFTER CODE ESC Y + 1 CHAR
+                      ; HERE ROW MANAGEMENT AND END OF COMMAND
+F55E  3416            MF55E   PSHS    X,D                     ; F55E: 34 16          
+F560  8020                    SUBA    #$20                    ; F560: 80 20           ASCII CODE TO HEX NUMBER
+F562  8150                    CMPA    #$50                    ; F562: 81 50           COMPARE TO 80
+F564  2502                    BCS     ZF568                   ; F564: 25 02          
+F566  864F                    LDA     #$4F                    ; F566: 86 4F          
+F568  B7DE98          ZF568   STA     CURROW                  ; F568: B7 DE 98       
+F56B  B6DE99                  LDA     CURLIN                  ; F56B: B6 DE 99       
+F56E  C650                    LDB     #$50                    ; F56E: C6 50          
+F570  3D                      MUL                             ; F570: 3D             
+F571  F3DE94                  ADDD    SCORAD                  ; F571: F3 DE 94       
+F574  FDDE9A                  STD     MDE9A                   ; F574: FD DE 9A       
+F577  FBDE98                  ADDB    CURROW                  ; F577: FB DE 98       
+F57A  8900                    ADCA    #$00                    ; F57A: 89 00          
+F57C  FDDE96                  STD     CURPOS                  ; F57C: FD DE 96       
+F57F  BDF330                  JSR     CURCRT                  ; F57F: BD F3 30       
+F582  CCF702                  LDD     #CHRSCR                 ; F582: CC F7 02       
+F585  FDDE92                  STD     GRADDR                  ; F585: FD DE 92        CHANGE JMADDR TO $F702 FOR NEXT CHAR
+F588  3596                    PULS    PC,X,D                  ; F588: 35 96          
+                      
+                      ; CURSOR TO HOME (0,0) ESC H
+F58A  FCDE94          CURHOM  LDD     SCORAD                  ; F58A: FC DE 94       
+F58D  FDDE96                  STD     CURPOS                  ; F58D: FD DE 96       
+F590  FDDE9A                  STD     MDE9A                   ; F590: FD DE 9A       
+F593  7FDE98                  CLR     CURROW                  ; F593: 7F DE 98       
+F596  7FDE99                  CLR     CURLIN                  ; F596: 7F DE 99       
+F599  7EF330                  JMP     CURCRT                  ; F599: 7E F3 30       
+                      
+                      ; CODE ESC O
+F59C  4F              ESCO    CLRA                            ; F59C: 4F             
+F59D  B4                      FCB     $B4                     ; F59D: B4             
+                      
+                      ; CODE ESC @
+F59E  8601            ESC_AR  LDA     #$01                    ; F59E: 86 01          
+F5A0  B7DEA4                  STA     MDEA4                   ; F5A0: B7 DE A4       
+F5A3  39                      RTS                             ; F5A3: 39             
+                      
+                      ; CODE ESC q
+F5A4  4F              ESC_q   CLRA                            ; F5A4: 4F             
+F5A5  B4                      FCB     $B4                     ; F5A5: B4             
+                      
+                      ; CODE ESC p
+F5A6  8680            ESC_p   LDA     #$80                    ; F5A6: 86 80          
+F5A8  B7DEA5                  STA     MDEA5                   ; F5A8: B7 DE A5       
+F5AB  39                      RTS                             ; F5AB: 39             
+                      
+                      ; CODE ESC G
+F5AC  4F              ESC_G   CLRA                            ; F5AC: 4F             
+F5AD  B4                      FCB     $B4                     ; F5AD: B4             
+                      
+                      ; CODE ESC F
+F5AE  8620            ESC_F   LDA     #$20                    ; F5AE: 86 20          
+F5B0  B7DEA6                  STA     MDEA6                   ; F5B0: B7 DE A6       
+F5B3  39                      RTS                             ; F5B3: 39             
+                      
+                      ; CODE ESC v
+F5B4  7FDEA7          ESC_v   CLR     MDEA7                   ; F5B4: 7F DE A7       
+F5B7  39                      RTS                             ; F5B7: 39             
+                      
+                      ; CODE ESC w
+F5B8  7FDEA7          ESC_w   CLR     MDEA7                   ; F5B8: 7F DE A7       
+F5BB  7ADEA7                  DEC     MDEA7                   ; F5BB: 7A DE A7       
+F5BE  39                      RTS                             ; F5BE: 39             
+                      
+                      ; INSERT LINE CODE ESC L
+F5BF  C616            ESC_L   LDB     #$16                    ; F5BF: C6 16          
+F5C1  F1DE99          ZF5C1   CMPB    CURLIN                  ; F5C1: F1 DE 99       
+F5C4  2D05                    BLT     ZF5CB                   ; F5C4: 2D 05          
+F5C6  8D15                    BSR     ZF5DD                   ; F5C6: 8D 15          
+F5C8  5A                      DECB                            ; F5C8: 5A             
+F5C9  20F6                    BRA     ZF5C1                   ; F5C9: 20 F6          
+F5CB  8D77            ZF5CB   BSR     CARRET                  ; F5CB: 8D 77          
+F5CD  7EF41E                  JMP     ESC_l                   ; F5CD: 7E F4 1E       
+F5D0  8650            ZF5D0   LDA     #$50                    ; F5D0: 86 50          
+F5D2  3D                      MUL                             ; F5D2: 3D             
+F5D3  F3DE94                  ADDD    SCORAD                  ; F5D3: F3 DE 94       
+F5D6  8407                    ANDA    #$07                    ; F5D6: 84 07           MAX IS $07FF
+F5D8  1F01                    TFR     D,X                     ; F5D8: 1F 01          
+F5DA  C650                    LDB     #$50                    ; F5DA: C6 50          
+F5DC  39                      RTS                             ; F5DC: 39             
+                      
+                      ; ???
+F5DD  3404            ZF5DD   PSHS    B                       ; F5DD: 34 04          
+F5DF  8DEF                    BSR     ZF5D0                   ; F5DF: 8D EF          
+F5E1  A689E000        ZF5E1   LDA     VIDRAM,X                ; F5E1: A6 89 E0 00    
+F5E5  308850                  LEAX    $50,X                   ; F5E5: 30 88 50       
+F5E8  8D0E                    BSR     LIMITX                  ; F5E8: 8D 0E          
+F5EA  A789E000                STA     VIDRAM,X                ; F5EA: A7 89 E0 00     WRITE A INTO VIDEO RAM
+F5EE  3088B1                  LEAX    -$4F,X                  ; F5EE: 30 88 B1       
+F5F1  8D05                    BSR     LIMITX                  ; F5F1: 8D 05          
+F5F3  5A                      DECB                            ; F5F3: 5A             
+F5F4  26EB                    BNE     ZF5E1                   ; F5F4: 26 EB          
+F5F6  3584                    PULS    PC,B                    ; F5F6: 35 84          
+                      
+                      ; LIMIT X TO MAX $07FF
+F5F8  3406            LIMITX  PSHS    D                       ; F5F8: 34 06          
+F5FA  1F10                    TFR     X,D                     ; F5FA: 1F 10          
+F5FC  8407                    ANDA    #$07                    ; F5FC: 84 07           MAX IS $07FF
+F5FE  1F01                    TFR     D,X                     ; F5FE: 1F 01          
+F600  3586                    PULS    PC,D                    ; F600: 35 86          
+                      
+                      ; DELETE LINE CODE ESC M
+F602  3420            ESC_M   PSHS    Y                       ; F602: 34 20          
+F604  F6DE99                  LDB     CURLIN                  ; F604: F6 DE 99       
+F607  C118            ZF607   CMPB    #$18                    ; F607: C1 18           COMPARE TO 24 (LINES ?)
+F609  2705                    BEQ     ZF610                   ; F609: 27 05          
+F60B  8D14                    BSR     ZF621                   ; F60B: 8D 14          
+F60D  5C                      INCB                            ; F60D: 5C             
+F60E  20F7                    BRA     ZF607                   ; F60E: 20 F7          
+                      
+                      ; COME HERE IF LAST SCREEN LINE SHOULD BE DELETED
+F610  8D32            ZF610   BSR     CARRET                  ; F610: 8D 32          
+F612  BEDE94                  FCB     $BE,$DE,$94             ; F612: BE DE 94        THIS INSTRUCTION IS "LDX $DE94"
+F615  30890730                LEAX    $0730,X                 ; F615: 30 89 07 30    
+F619  318850                  LEAY    $50,X                   ; F619: 31 88 50       
+F61C  BDF442                  JSR     PUTSXY                  ; F61C: BD F4 42       
+F61F  35A0                    PULS    PC,Y                    ; F61F: 35 A0          
+                      
+                      ; COME HERE IF OTHER LINE THAN SCREEN LAST ONE SHOULD BE DELETED
+F621  3404            ZF621   PSHS    B                       ; F621: 34 04          
+F623  8DAB                    BSR     ZF5D0                   ; F623: 8D AB          
+F625  308850          ZF625   LEAX    $50,X                   ; F625: 30 88 50        COMPUTE ADDRESS 80 CHAR FORWARD
+F628  8DCE                    BSR     LIMITX                  ; F628: 8D CE          
+F62A  A689E000                LDA     VIDRAM,X                ; F62A: A6 89 E0 00    
+F62E  3088B0                  LEAX    -$50,X                  ; F62E: 30 88 B0        COMPUTE ADDRESS 80 CHAR BACKWARD
+F631  8DC5                    BSR     LIMITX                  ; F631: 8D C5          
+F633  A789E000                STA     VIDRAM,X                ; F633: A7 89 E0 00    
+F637  3001                    LEAX    $01,X                   ; F637: 30 01          
+F639  5A                      DECB                            ; F639: 5A             
+F63A  26E9                    BNE     ZF625                   ; F63A: 26 E9          
+F63C  3584                    PULS    PC,B                    ; F63C: 35 84          
+                      
+                      ; DELETE SCREEN AND CURSOR TO HOME CODE ESC E
+F63E  BDF322          ESC_E   JSR     DELSCR                  ; F63E: BD F3 22       
+F641  7EF58A                  JMP     CURHOM                  ; F641: 7E F5 8A       
+                      
+                      ; PERFORM CR CARRIAGE RETURN
+F644  BEDE9A          CARRET  LDX     MDE9A                   ; F644: BE DE 9A       
+F647  BFDE96                  STX     CURPOS                  ; F647: BF DE 96       
+F64A  7FDE98                  CLR     CURROW                  ; F64A: 7F DE 98       
+F64D  7EF330                  JMP     CURCRT                  ; F64D: 7E F3 30       
+F650  8DF2            ZF650   BSR     CARRET                  ; F650: 8D F2          
+                      
+                      ; PERFORM LF LINE FEED
+F652  BDF4DA          LINFEE  JSR     ZF4DA                   ; F652: BD F4 DA       
+F655  B6DE99                  LDA     CURLIN                  ; F655: B6 DE 99       
+F658  7CDE99                  INC     CURLIN                  ; F658: 7C DE 99       
+F65B  8117                    CMPA    #$17                    ; F65B: 81 17          
+F65D  1027FCE2                LBEQ    ZF343                   ; F65D: 10 27 FC E2    
+F661  7EF330                  JMP     CURCRT                  ; F661: 7E F3 30       
+F664  FCDE9A          ZF664   LDD     MDE9A                   ; F664: FC DE 9A       
+F667  8407            ZF667   ANDA    #$07                    ; F667: 84 07           MAX IS $07FF
+F669  1F01                    TFR     D,X                     ; F669: 1F 01          
+F66B  8620                    LDA     #$20                    ; F66B: 86 20          
+F66D  C650                    LDB     #$50                    ; F66D: C6 50          
+F66F  A789E000        ZF66F   STA     VIDRAM,X                ; F66F: A7 89 E0 00    
+F673  3001                    LEAX    $01,X                   ; F673: 30 01          
+F675  8C0800                  CMPX    #$0800                  ; F675: 8C 08 00       
+F678  2603                    BNE     ZF67D                   ; F678: 26 03          
+F67A  8E0000                  LDX     #$0000                  ; F67A: 8E 00 00       
+F67D  5A              ZF67D   DECB                            ; F67D: 5A             
+F67E  26EF                    BNE     ZF66F                   ; F67E: 26 EF          
+F680  39                      RTS                             ; F680: 39             
+                      
+                      ; PERFORM TAB HORIZONTAL TAB
+F681  BDF4B5          HTAB    JSR     CURRIG                  ; F681: BD F4 B5       
+F684  F6DE98                  LDB     CURROW                  ; F684: F6 DE 98       
+F687  C148                    CMPB    #$48                    ; F687: C1 48          
+F689  2E04                    BGT     ZF68F                   ; F689: 2E 04          
+F68B  C507                    BITB    #$07                    ; F68B: C5 07          
+F68D  26F2                    BNE     HTAB                    ; F68D: 26 F2          
+F68F  39              ZF68F   RTS                             ; F68F: 39             
+                      
+                      ; 6522 OUTPUT 2 CLOCK INIT
+F690  3406            VIAINI  PSHS    D                       ; F690: 34 06          
+F692  3410                    PSHS    X                       ; F692: 34 10          
+F694  8042                    SUBA    #$42                    ; F694: 80 42          
+F696  8108                    CMPA    #$08                    ; F696: 81 08           PARAMETER NUMBER = A-$42
+F698  2408                    BCC     ZF6A2                   ; F698: 24 08           BRANCH IF OUT OF PARAMETER TABLE
+F69A  8EF6A6                  LDX     #MF6A6                  ; F69A: 8E F6 A6        LOAD VIA PARAMETER TABLE ADDRESS
+F69D  A686                    LDA     A,X                     ; F69D: A6 86           LOAD PARAMETER FROM TABLE
+F69F  B7EF88                  STA     VIA_8                   ; F69F: B7 EF 88        STORE PARAMETER IN VIA
+F6A2  3510            ZF6A2   PULS    X                       ; F6A2: 35 10          
+F6A4  2054                    BRA     ZF6FA                   ; F6A4: 20 54           GO TO GRADDR ADDRESS RESTORE
+                      
+                      ; 6522 PARAMETERS FOR CLOCK OUTPUT 2
+F6A6  BE5E2E160E0A    MF6A6   FCB     $BE,$5E,$2E,$16,$0E,$0A ; F6A6: BE 5E 2E 16 0E 0A 
+F6AC  0401                    FCB     $04,$01                 ; F6AC: 04 01          
+                      
+                      ; CHAR MGNT AFTER ESC x
+                      ; COME HERE AFTER ESC x ALREADY RECEIVED
+                      ; ?? MOVE CURSOR TO LINE X
+F6AE  3406            ESC_x   PSHS    D                       ; F6AE: 34 06          
+F6B0  8134                    CMPA    #$34                    ; F6B0: 81 34           COMPARE TO "4"
+F6B2  2732                    BEQ     ZF6E6                   ; F6B2: 27 32          
+F6B4  8135                    CMPA    #$35                    ; F6B4: 81 35           COMPARE TO "5"
+F6B6  2609                    BNE     ZF6C1                   ; F6B6: 26 09          
+F6B8  F6DEA8                  LDB     MDEA8                   ; F6B8: F6 DE A8       
+F6BB  C49F                    ANDB    #$9F                    ; F6BB: C4 9F          
+F6BD  CA20                    ORB     #$20                    ; F6BD: CA 20          
+F6BF  2031                    BRA     ZF6F2                   ; F6BF: 20 31          
+F6C1  8133            ZF6C1   CMPA    #$33                    ; F6C1: 81 33           COMPARE TO "3"
+F6C3  2635                    BNE     ZF6FA                   ; F6C3: 26 35          
+F6C5  B7DEA9                  STA     MDEA9                   ; F6C5: B7 DE A9       
+F6C8  2030                    BRA     ZF6FA                   ; F6C8: 20 30          
+                      
+                      ; CHAR MGNT AFTER ESC y
+                      ; COME HERE AFTER ESC y ALREADY RECEIVED
+                      ; ?? MOVE CURSOR TO ROW Y
+F6CA  3406            ESC_y   PSHS    D                       ; F6CA: 34 06          
+F6CC  8135                    CMPA    #$35                    ; F6CC: 81 35           COMPARE TO "5"
+F6CE  271D                    BEQ     ZF6ED                   ; F6CE: 27 1D          
+F6D0  8134                    CMPA    #$34                    ; F6D0: 81 34           COMPARE TO "4"
+F6D2  2609                    BNE     ZF6DD                   ; F6D2: 26 09          
+F6D4  F6DEA8                  LDB     MDEA8                   ; F6D4: F6 DE A8       
+F6D7  C460                    ANDB    #$60                    ; F6D7: C4 60          
+F6D9  CA08                    ORB     #$08                    ; F6D9: CA 08          
+F6DB  2015                    BRA     ZF6F2                   ; F6DB: 20 15          
+F6DD  8133            ZF6DD   CMPA    #$33                    ; F6DD: 81 33           COMPARE TO "3"
+F6DF  2619                    BNE     ZF6FA                   ; F6DF: 26 19          
+F6E1  7FDEA9                  CLR     MDEA9                   ; F6E1: 7F DE A9       
+F6E4  2014                    BRA     ZF6FA                   ; F6E4: 20 14          
+F6E6  F6DEA8          ZF6E6   LDB     MDEA8                   ; F6E6: F6 DE A8       
+F6E9  C4E0                    ANDB    #$E0                    ; F6E9: C4 E0          
+F6EB  2005                    BRA     ZF6F2                   ; F6EB: 20 05          
+F6ED  F6DEA8          ZF6ED   LDB     MDEA8                   ; F6ED: F6 DE A8       
+F6F0  CA60                    ORB     #$60                    ; F6F0: CA 60          
+F6F2  F7DEA8          ZF6F2   STB     MDEA8                   ; F6F2: F7 DE A8       
+F6F5  860A                    LDA     #$0A                    ; F6F5: 86 0A          
+F6F7  FDEC00                  STD     CRTC                    ; F6F7: FD EC 00       
+F6FA  CCF702          ZF6FA   LDD     #CHRSCR                 ; F6FA: CC F7 02       
+F6FD  FDDE92                  STD     GRADDR                  ; F6FD: FD DE 92        CHANGE JMADDR TO $F702 FOR NEXT CHAR
+F700  3586                    PULS    PC,D                    ; F700: 35 86          
+                      
+                      ; PUT CHAR ON SCREEN AFTER FILTERING SPECIAL CHAR AND ESC CODE
+F702  3416            CHRSCR  PSHS    X,D                     ; F702: 34 16          
+F704  8560                    BITA    #$60                    ; F704: 85 60           A BIT TO BIT AND WITH $60
+F706  2605                    BNE     ZF70D                   ; F706: 26 05           LOW CASE CHAR - GO DIRECTLY TO OUTPUT
+F708  7DDEA9                  TST     MDEA9                   ; F708: 7D DE A9       
+F70B  2705                    BEQ     ZF712                   ; F70B: 27 05           JUMP TO CHAR FILTERING ONLY IF MDEA9 = 0
+F70D  BDF354          ZF70D   JSR     ZF354                   ; F70D: BD F3 54        NORMAL CHAR JUMP TO PUT IT IN VIDEO RAM
+F710  3596                    PULS    PC,X,D                  ; F710: 35 96          
+                      
+                      ; COME HERE IF CHAR UPPER CASE OR IF MDEA9 = 0
+                      ; FILTER SPECIAL CHAR AND DETECT ESC CHAR
+F712  8108            ZF712   CMPA    #$08                    ; F712: 81 08           COMPARE WITH CHAR BS
+F714  2605                    BNE     ZF71B                   ; F714: 26 05          
+F716  BDF4A4                  JSR     CURLEF                  ; F716: BD F4 A4       
+F719  3596                    PULS    PC,X,D                  ; F719: 35 96          
+F71B  810A            ZF71B   CMPA    #$0A                    ; F71B: 81 0A           COMPARE WITH CHAR LF
+F71D  2605                    BNE     ZF724                   ; F71D: 26 05          
+F71F  BDF652                  JSR     LINFEE                  ; F71F: BD F6 52       
+F722  3596                    PULS    PC,X,D                  ; F722: 35 96          
+F724  810D            ZF724   CMPA    #$0D                    ; F724: 81 0D           COMPARE WITH CHAR CR
+F726  2605                    BNE     ZF72D                   ; F726: 26 05          
+F728  BDF644                  JSR     CARRET                  ; F728: BD F6 44       
+F72B  3596                    PULS    PC,X,D                  ; F72B: 35 96          
+F72D  8109            ZF72D   CMPA    #$09                    ; F72D: 81 09           COMPARE WITH CHAR HTAB
+F72F  2605                    BNE     ZF736                   ; F72F: 26 05          
+F731  BDF681                  JSR     HTAB                    ; F731: BD F6 81       
+F734  3596                    PULS    PC,X,D                  ; F734: 35 96          
+F736  8107            ZF736   CMPA    #$07                    ; F736: 81 07           COMPARE WITH CHAR BELL
+F738  2000                    BRA     ZF73A                   ; F738: 20 00          
+F73A  811B            ZF73A   CMPA    #$1B                    ; F73A: 81 1B           COMPARE WITH CHAR ES
+F73C  2702                    BEQ     CHGADD                  ; F73C: 27 02           IF ESC DETECTED CHANGE GRADDR
+F73E  3596                    PULS    PC,X,D                  ; F73E: 35 96          
+                      
+                      ; COMME HERE IF ESC DETECTED THEN CHANGE GRAPHIC ROUTINE ADDRESS
+F740  CCF748          CHGADD  LDD     #ESCCOD                 ; F740: CC F7 48       
+F743  FDDE92          ZF743   STD     GRADDR                  ; F743: FD DE 92        CHANGE GRADDR FOR NEXT CHAR
+F746  3596                    PULS    PC,X,D                  ; F746: 35 96          
+                      
+                      ; ESC CODE FILTERING - COME HERE IF PREVIOUS CHAR WAS ESC
+                      ; THESE CODES MUST BE FOLLOWED BY NUMERICAL ARGUMENTS
+F748  3416            ESCCOD  PSHS    X,D                     ; F748: 34 16          
+F74A  8159                    CMPA    #$59                    ; F74A: 81 59           COMPARE WITH CHAR Y / CHANGE CURSOR POSITION
+F74C  2605                    BNE     ZF753                   ; F74C: 26 05          
+F74E  CCF54B                  LDD     #ESC_Y                  ; F74E: CC F5 4B       
+F751  20F0                    BRA     ZF743                   ; F751: 20 F0          
+F753  8172            ZF753   CMPA    #$72                    ; F753: 81 72           COMPARE WITH CHAR r / ?? MAY BE CHANGE RS232 SPEED
+F755  2605                    BNE     ZF75C                   ; F755: 26 05          
+F757  CCF690                  LDD     #VIAINI                 ; F757: CC F6 90       
+F75A  20E7                    BRA     ZF743                   ; F75A: 20 E7          
+F75C  8178            ZF75C   CMPA    #$78                    ; F75C: 81 78           COMPARE WITH CHAR x
+F75E  2605                    BNE     ZF765                   ; F75E: 26 05          
+F760  CCF6AE                  LDD     #ESC_x                  ; F760: CC F6 AE       
+F763  20DE                    BRA     ZF743                   ; F763: 20 DE          
+F765  8179            ZF765   CMPA    #$79                    ; F765: 81 79           COMPARE WITH CHAR y
+F767  2605                    BNE     SRCCOD                  ; F767: 26 05          
+F769  CCF6CA                  LDD     #ESC_y                  ; F769: CC F6 CA       
+F76C  20D5                    BRA     ZF743                   ; F76C: 20 D5          
+                      
+                      ; COMPARE WITH TABLE TABCOD
+                      ; LOOK ABOUT CHAR RECEIVED AFTER ESC AND EXECUTE ROUTINE
+F76E  8EF785          SRCCOD  LDX     #TABCOD                 ; F76E: 8E F7 85       
+F771  A184            ZF771   CMPA    ,X                      ; F771: A1 84          
+F773  2708                    BEQ     ZF77D                   ; F773: 27 08          
+F775  3003                    LEAX    $03,X                   ; F775: 30 03          
+F777  6D84                    TST     ,X                      ; F777: 6D 84          
+F779  26F6                    BNE     ZF771                   ; F779: 26 F6          
+F77B  2003                    BRA     ZF780                   ; F77B: 20 03          
+F77D  AD9801          ZF77D   JSR     [$01,X]                 ; F77D: AD 98 01       
+F780  CCF702          ZF780   LDD     #CHRSCR                 ; F780: CC F7 02        PREPARE FOR NORMAL GRADDR FOR NEXT CHAR
+F783  20BE                    BRA     ZF743                   ; F783: 20 BE          
+                      
+                      ; TABLE DES COMMANDES GRAPHIQUES (A VERIFIER)
+F785  48              TABCOD  FCB     'H                      ; F785: 48             
+F786  F58A                    FDB     CURHOM                  ; F786: F5 8A          
+F788  43                      FCB     'C                      ; F788: 43             
+F789  F4B5                    FDB     CURRIG                  ; F789: F4 B5          
+F78B  44                      FCB     'D                      ; F78B: 44             
+F78C  F4A4                    FDB     CURLEF                  ; F78C: F4 A4          
+F78E  42                      FCB     'B                      ; F78E: 42             
+F78F  F4CB                    FDB     CURDWN                  ; F78F: F4 CB          
+F791  41                      FCB     'A                      ; F791: 41             
+F792  F4ED                    FDB     CURSUP                  ; F792: F4 ED          
+F794  49                      FCB     'I                      ; F794: 49             
+F795  F50A                    FDB     REVELF                  ; F795: F5 0A          
+F797  6A                      FCB     'j                      ; F797: 6A             
+F798  F517                    FDB     ESC_j                   ; F798: F5 17          
+F79A  6B                      FCB     'k                      ; F79A: 6B             
+F79B  F530                    FDB     ESC_k                   ; F79B: F5 30          
+F79D  45                      FCB     'E                      ; F79D: 45             
+F79E  F63E                    FDB     ESC_E                   ; F79E: F6 3E          
+F7A0  40                      FCB     '@                      ; F7A0: 40             
+F7A1  F59E                    FDB     ESC_AR                  ; F7A1: F5 9E          
+F7A3  4F                      FCB     'O                      ; F7A3: 4F             
+F7A4  F59C                    FDB     ESCO                    ; F7A4: F5 9C          
+F7A6  4E                      FCB     'N                      ; F7A6: 4E             
+F7A7  F465                    FDB     ESC_N                   ; F7A7: F4 65          
+F7A9  4B                      FCB     'K                      ; F7A9: 4B             
+F7AA  F401                    FDB     DELEOL                  ; F7AA: F4 01          
+F7AC  6F                      FCB     'o                      ; F7AC: 6F             
+F7AD  F411                    FDB     ESC_o                   ; F7AD: F4 11          
+F7AF  6C                      FCB     'l                      ; F7AF: 6C             
+F7B0  F41E                    FDB     ESC_l                   ; F7B0: F4 1E          
+F7B2  62                      FCB     'b                      ; F7B2: 62             
+F7B3  F42A                    FDB     ESC_b                   ; F7B3: F4 2A          
+F7B5  4A                      FCB     'J                      ; F7B5: 4A             
+F7B6  F431                    FDB     DELEOS                  ; F7B6: F4 31          
+F7B8  4D                      FCB     'M                      ; F7B8: 4D             
+F7B9  F602                    FDB     ESC_M                   ; F7B9: F6 02          
+F7BB  4C                      FCB     'L                      ; F7BB: 4C             
+F7BC  F5BF                    FDB     ESC_L                   ; F7BC: F5 BF          
+F7BE  70                      FCB     'p                      ; F7BE: 70             
+F7BF  F5A6                    FDB     ESC_p                   ; F7BF: F5 A6          
+F7C1  71                      FCB     'q                      ; F7C1: 71             
+F7C2  F5A4                    FDB     ESC_q                   ; F7C2: F5 A4          
+F7C4  46                      FCB     'F                      ; F7C4: 46             
+F7C5  F5AE                    FDB     ESC_F                   ; F7C5: F5 AE          
+F7C7  47                      FCB     'G                      ; F7C7: 47             
+F7C8  F5AC                    FDB     ESC_G                   ; F7C8: F5 AC          
+F7CA  7A                      FCB     'z                      ; F7CA: 7A             
+F7CB  F366                    FDB     ESC_z                   ; F7CB: F3 66          
+F7CD  76                      FCB     'v                      ; F7CD: 76             
+F7CE  F5B4                    FDB     ESC_v                   ; F7CE: F5 B4          
+F7D0  77                      FCB     'w                      ; F7D0: 77             
+F7D1  F5B8                    FDB     ESC_w                   ; F7D1: F5 B8          
+F7D3  00                      FCB     $00                     ; F7D3: 00              FIN DE TABLE
+                      
+F7D4  FFFFFFFFFFFF            FCB     $FF,$FF,$FF,$FF,$FF,$FF ; F7D4: FF FF FF FF FF FF 
+F7DA  FFFFFFFFFFFF            FCB     $FF,$FF,$FF,$FF,$FF,$FF ; F7DA: FF FF FF FF FF FF 
+F7E0  FFFFFFFFFFFF            FCB     $FF,$FF,$FF,$FF,$FF,$FF ; F7E0: FF FF FF FF FF FF 
+F7E6  FFFFFFFFFFFF            FCB     $FF,$FF,$FF,$FF,$FF,$FF ; F7E6: FF FF FF FF FF FF 
+F7EC  FFFFFFFFFFFF            FCB     $FF,$FF,$FF,$FF,$FF,$FF ; F7EC: FF FF FF FF FF FF 
+F7F2  FFFFFFFFFFFF            FCB     $FF,$FF,$FF,$FF,$FF,$FF ; F7F2: FF FF FF FF FF FF 
+F7F8  FFFFFFFFFFFF            FCB     $FF,$FF,$FF,$FF,$FF,$FF ; F7F8: FF FF FF FF FF FF 
+F7FE  FFFF                    FCB     $FF,$FF                 ; F7FE: FF FF          
+                      
+                      
+F800                          END     BOOTROM
