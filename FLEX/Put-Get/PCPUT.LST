@@ -1,0 +1,559 @@
+                      **********************************************************
+********
+                      *
+                      * PCPUT
+                      *    Allows transfer of files from a 6809 FLEX  file 
+system to
+                      *    a PC using the XMODEM protocol. Either port on the 
+console
+                      *    MP-S2 serial board can be used for the transfer.
+                      *
+                      *    Ver    Date      Desc
+                      *    1.0  02/09/22   Mike Douglas, Initial version
+                      *
+                      *    Adapted for Elektor EC-6809 by Ph. Roehr 12/2023
+                      *
+                      **********************************************************
+********
+
+                      * FLEX equates
+
+ C840                 FCB     equ $C840       ;FLEX system FCB
+ CC02                 EOL     equ $CC02       ;EOL delimiter from TTYSET
+ D406                 FMS     equ $D406       ;entry point for FMS calls
+ D403                 FMSCLS  equ $D403       ;close all files
+ CD03                 WARMS   equ $CD03       ;FLEX re-entry address
+ CD15                 GETCHR  equ $CD15       ;get character from console
+ CD1E                 PSTRNG  equ $CD1E       ;display string on console
+ CD2D                 GETFIL  equ $CD2D       ;build FCB from command line 
+parameter
+ CD27                 NEXTCH  equ $CD27       ;get next char from command line
+ CD3F                 RPTERR  equ $CD3F       ;report error from the FCB
+
+                      * FMS equates
+
+ 0001                 OPENRD  equ $01         ;open for read
+ 0008                 FMSEOF  equ $08         ;FMS EOF error code
+
+                      * Offsets into the FMS file control block (FCB)
+
+ 0000                 fcbCMD  equ 0           ;FMS command
+ 0001                 fcbERR  equ 1           ;error status
+ 000C                 fcbEXT  equ 12          ;file name extension
+ 003B                 fcbBIN  equ 59          ;binary/space compression flag
+
+                      * XMODEM equates
+
+ 0080                 PKTLEN  equ 128         ;128 byte xmodem packet length
+ 0001                 SOH equ $01
+ 0004                 EOT equ $04
+ 0006                 ACK equ $06
+ 0015                 NAK equ $15
+ 001A                 EOF equ $1A             ;ctrl-z character
+ 000A                 XMTRIES equ 10          ;number of xmodem retries
+
+                      * MP-S serial board equates
+
+ EF5C                 SIOADD  equ $EF60-4     ;ACIA base address
+ 0001                 SIORDRF equ $01         ;receive data register full
+ 0002                 SIOTDRE equ $02         ;transmit data register empty
+
+                      * Misc equates
+
+ 0000                 CPU2MH  equ 0           ;2MHz CPU flag, non-zero=2MHz
+
+ 0020                 SPACE   equ $20         ;ASCII space
+ 000D                 CR      equ $0D         ;ASCII carriage return
+ 000A                 LF      equ $0A         ;ASCII line feed
+ 0003                 CTRLC   equ $03         ;ASCII ctrl-c
+
+                      *---------------------------------------------------------
+--------------------
+                      * Start of code
+                      *---------------------------------------------------------
+--------------------
+                          org $C100
+
+ C100 2004            pcPut   bra start
+ C102 0A                      fcb 10          ;version 1.0
+ C103 EF5C            sioAddr fdb SIOADD      ;ACIA base address
+ C105 00              cpu2Mhz fcb CPU2MH      ;2MHz CPU flag
+
+                      * Validate command line file name and parameters
+
+ C106 8EC840          start   ldx #FCB        ;use the system FCB
+ C109 BDCD2D                  jsr GETFIL      ;get file name from command line
+ C10C 2578                    bcs dspHelp     ;invalid, display help
+
+ C10E 8601                    lda #OPENRD     ;FMS open for read
+ C110 A700                    sta fcbCMD,x
+ C112 BDD406                  jsr FMS
+ C115 266A                    bne dskErr      ;file not found
+
+ C117 BDC255                  jsr getType     ;get file type
+ C11A BDC28E                  jsr getParm     ;get command line parameters
+ C11D 2667                    bne dspHelp     ;command line error
+
+                      * Prompt the user to start the XMODEM receive operation 
+on the PC. 
+                      *    Wait for a clear receive line for a least one 
+second, then start
+                      *    looking for NAK from the PC.
+
+ C11F 8EC402                  ldx #mStart     ;display start file transfer 
+prompt
+ C122 BDCD1E                  jsr PSTRNG
+ C125 8601                    lda #1          ;init xmodem block number to one
+ C127 B7C450                  sta blkNum
+ C12A 7FC44A                  clr prvByte     ;set previous byte <> CR
+
+ C12D BDC231          clear1  jsr rcvByte     ;loop until input clear for 1 
+second
+ C130 26FB                    bne clear1
+                          
+ C132 BDC231          waitNak jsr rcvByte     ;wait for a NAK = receiver ready
+ C135 8115                    cmpa #NAK
+ C137 2706                    beq rdFile      ;have NAK
+                          
+ C139 8103                    cmpa #CTRLC     ;abort?
+ C13B 26F5                    bne waitNak     ;no
+ C13D 206B                    bra pgmExit     ;else exit
+
+                      * File transfer loop
+                          
+ C13F 8EC454          rdFile  ldx #xfrBuf     ;init bufPtr->xfrBuf
+ C142 BFC447                  stx bufPtr
+ C145 8680                    lda #PKTLEN     ;byteCnt=bytes in an XMODEM 
+packet
+ C147 B7C449                  sta byteCnt
+                          
+ C14A B6C44A          rdLoop  lda prvByte     ;was previous byte a CR?
+ C14D 810D                    cmpa #CR
+ C14F 2609                    bne rdNotCr     ;no
+
+ C151 B6C44B                  lda fWindow     ;Windows style EOL (CR/LF)?
+ C154 2704                    beq rdNotCr     ;no
+ C156 860A                    lda #LF         ;else, yes, inject an LF
+ C158 2013                    bra rdStore
+
+ C15A 8EC840          rdNotCr ldx #FCB        ;issue read byte command to FMS
+ C15D BDD406                  jsr FMS         ;get next byte
+ C160 262D                    bne readErr     ;EOF most likely
+
+ C162 810D                    cmpa #CR        ;carriage return?
+ C164 2607                    bne rdStore     ;no
+ C166 F6C44C                  ldb fLinux      ;Linux style EOL (LF only)?
+ C169 2702                    beq rdStore     ;no
+ C16B 860A                    lda #LF         ;else, substitute LF for CR
+
+ C16D BEC447          rdStore ldx bufPtr      ;put byte in XMODEM buffer
+ C170 A780                    sta 0,x+
+ C172 B7C44A                  sta prvByte     ;save as previous byte sent
+
+ C175 BFC447                  stx bufPtr
+ C178 7AC449                  dec byteCnt
+ C17B 26CD                    bne rdLoop      ;repeat for 128 bytes (PKTLEN)
+                          
+ C17D 8D31                    bsr sndPkt      ;send the XMODEM packet
+ C17F 20BE                    bra rdFile      ;repeat
+                       
+                      * dskErr, dspHelp - Disk error or command line parameter 
+error
+
+ C181 BDCD3F          dskErr  jsr RPTERR      ;let FLEX report the error
+ C184 2024                    bra pgmExit
+
+ C186 8EC2C1          dspHelp ldx #mHelp
+ C189 BDCD1E                  jsr PSTRNG
+ C18C 7ECD03                  jmp WARMS
+
+                      * readErr - If EOF, fill the remainder of the XMODEM 
+packet and
+                      *    send it.
+
+ C18F A601            readErr lda fcbERR,x    ;is the error code EOF?
+ C191 8108                    cmpa #FMSEOF
+ C193 26EC                    bne dskErr      ;no, something else is wrong
+                       
+ C195 F6C449                  ldb byteCnt     ;on packet boundary?
+ C198 C180                    cmpb #PKTLEN
+ C19A 270C                    beq sndDone     ;yes, nothing to fill, send 
+complete
+                          
+ C19C 861A                    lda #EOF        ;else, fill with CP/M EOF 
+character
+ C19E BEC447                  ldx bufPtr
+                          
+ C1A1 A780            fillLp  sta 0,x+        ;fill with EOF
+ C1A3 5A                      decb
+ C1A4 26FB                    bne fillLp
+                          
+ C1A6 8D08                    bsr sndPkt      ;send final packet
+
+ C1A8 8D4F            sndDone bsr sndEot      ;EOT to say we're done
+ C1AA BDD403          pgmExit jsr FMSCLS      ;close open files
+ C1AD 7ECD03                  jmp WARMS       ;exit to FLEX
+
+                      *---------------------------------------------------------
+--------------------
+                      * sndPkt - Send the 128 byte packet in xfrBuf using the 
+XMODEM protocol.
+                      *---------------------------------------------------------
+--------------------
+ C1B0 860A            sndPkt  lda #XMTRIES    ;init retry counter
+ C1B2 B7C44F                  sta xmRetry
+
+                      * Send header bytes
+
+ C1B5 8601            reSend  lda #SOH        ;1st byte is SOH
+ C1B7 8D5E                    bsr sndByte
+ C1B9 B6C450                  lda blkNum      ;2nd byte is the block number
+ C1BC 8D59                    bsr sndByte 
+ C1BE 43                      coma            ;send complement of block number
+ C1BF 8D56                    bsr sndByte
+
+                      * Send the 128 byte data portion of the packet followed 
+by checksum
+
+ C1C1 8EC454                  ldx #xfrBuf     ;X->packet data
+ C1C4 8680                    lda #PKTLEN     ;set transfer length
+ C1C6 B7C449                  sta byteCnt
+ C1C9 7FC451                  clr chkSum      ;init checksum
+
+ C1CC A680            pktLoop lda 0,x+        ;get next byte to send
+ C1CE 8D47                    bsr sndByte     ;send and update checksum
+ C1D0 7AC449                  dec byteCnt     ;decrement bytes remaining
+ C1D3 26F7                    bne pktLoop
+
+ C1D5 B6C451                  lda chkSum      ;send the checksum
+ C1D8 8D3D                    bsr sndByte
+
+                      * All bytes sent. Wait for the response.
+
+ C1DA 8D55                    bsr rcvByte     ;get the response character
+ C1DC 2708                    beq sndFail     ;timeout on response
+                          
+ C1DE 8106                    cmpa #ACK       ;ack received?
+ C1E0 2604                    bne sndFail     ;no, send failed
+                          
+ C1E2 7CC450                  inc blkNum      ;increment block number
+ C1E5 39                      rts
+
+                      * sndFail - ACK not received, decrement retry count and 
+try again.
+
+ C1E6 7AC44F          sndFail dec xmRetry     ;decrement retry counter
+ C1E9 2706                    beq xmFail      ;retries used up, failed xmodem 
+transfer
+
+ C1EB 8D44            clear2  bsr rcvByte     ;wait for 1 second of clear line
+ C1ED 26FC                    bne clear2
+
+ C1EF 20C4                    bra reSend      ;re-send the packet
+
+                      * xmFail - Display failure message then restart program
+
+ C1F1 8EC428          xmFail  ldx #mXmdm      ;xmodem failure message
+ C1F4 BDCD1E                  jsr PSTRNG
+ C1F7 20B1                    bra pgmExit
+
+                      *---------------------------------------------------------
+--------------------
+                      *  sndEot - Send EOT character and wait for ACK response
+                      *---------------------------------------------------------
+--------------------
+ C1F9 860A            sndEot  lda #XMTRIES    ;init retry counter
+ C1FB B7C44F                  sta xmRetry
+
+ C1FE 8604            reEot   lda #EOT        ;send the EOT
+ C200 8D15                    bsr sndByte
+ C202 8D2D                    bsr rcvByte     ;wait for response
+ C204 2705                    beq eotFail     ;timeout
+
+ C206 8106                    cmpa #ACK       ;ACK received?
+ C208 2601                    bne eotFail     ;no, EOT send failed
+
+ C20A 39              eotExit rts             ;otherwise, we're done.
+
+                      * Timeout waiting for ACK to EOT. Decrement retry 
+counter and try again.
+
+ C20B 7AC44F          eotFail dec xmRetry     ;decrement retry counter
+ C20E 27FA                    beq eotExit     ;just give up - xfer was 
+probably good
+
+ C210 8D1F            clear3  bsr rcvByte     ;wait for 1 second of clear line
+ C212 26FC                    bne clear3
+
+ C214 7EC1FE                  jmp reEot       ;try again
+*** warning 1: Long branch within short branch range could be optimized
+
+                      *---------------------------------------------------------
+--------------------
+                      * sndByte - Send the byte in A through the serial port. 
+Adds the byte 
+                      *     to chkSum. Clobbers B.
+                      *---------------------------------------------------------
+--------------------
+ C217 1F89            sndByte tfr a,b         ;B=character to send
+ C219 FBC451                  addb    chkSum  ;update the checksum
+ C21C F7C451                  stb chkSum
+
+ C21F BFC452                  stx ioSaveX     ;preserve X
+ C222 BEC44D                  ldx portAdr     ;X->serial port
+                              
+ C225 E600            sbLoop  ldb 0,x         ;wait for OK to transmit
+ C227 C402                    andb    #SIOTDRE
+ C229 27FA                    beq sbLoop  
+
+ C22B A701                    sta 1,x         ;send the character
+ C22D BEC452                  ldx ioSaveX     ;restore X
+ C230 39                      rts
+
+                      *---------------------------------------------------------
+--------------------
+                      * rcvByte - Receive a byte from the serial port with a 
+one second
+                      *     timeout. If a timeout occurs, zero is returned in 
+A and the zero 
+                      *     flag is true. Otherwise, the character is returned 
+in A and zero 
+                      *     flag is false. 
+                      *---------------------------------------------------------
+--------------------
+ C231 8E765F          rcvByte ldx #30303      ;one second, 1MHz, 33 cycles per 
+loop
+ C234 B6C105                  lda cpu2Mhz     ;2MHz CPU?
+ C237 2703                    beq rbLoop      ;no, 1MHz
+ C239 8EECBE                  ldx #60606      ;else double count for 2MHz
+
+ C23C BFC452          rbLoop  stx ioSaveX     ;(6) preserve counter
+ C23F BEC44D                  ldx portAdr     ;(6) X->serial port 
+ C242 A600                    lda 0,x         ;(4) see if a new character is 
+present
+ C244 8401                    anda #SIORDRF   ;(2)
+ C246 2608                    bne rbRead      ;(2) new character present
+
+ C248 BEC452                  ldx ioSaveX     ;(6) restore counter
+ C24B 301F                    leax -1,x       ;(5) decrement timeout
+ C24D 26ED                    bne rbLoop      ;(2)
+
+ C24F 39                      rts             ;timeout, exit with Z true
+                          
+ C250 A601            rbRead  lda 1,x         ;return character in A
+ C252 1CFB                    andcc #$FB      ;ensure Z is false
+ C254 39                      rts
+
+                      *---------------------------------------------------------
+--------------------
+                      * getType - Get file type (binary or text). If binary, 
+fcbBIN in the FCB
+                      *   is set to $FF to tell the FMS to treat the file as 
+binary.
+                      *---------------------------------------------------------
+--------------------
+ C255 8601            getType lda #1          ;default to Windows text file
+ C257 B7C44B                  sta fWindow
+ C25A 7FC44C                  clr fLinux
+ C25D 8EC284                  ldx #txtTbl     ;X->table of text file types
+
+ C260 A600            gtLoop  lda 0,x         ;test for end of table
+ C262 2717                    beq gtBin       ;match not found, treat as 
+binary
+                          
+ C264 B1C84C                  cmpa FCB+fcbEXT ;compare 1st byte of extension
+ C267 260E                    bne gtNext      ;doesn't match
+
+ C269 A601                    lda 1,x         ;compare 2nd byte
+ C26B B1C84D                  cmpa FCB+fcbEXT+1
+ C26E 2607                    bne gtNext      ;doesn't match
+
+ C270 A602                    lda 2,x         ;compare 3rd byte
+ C272 B1C84E                  cmpa FCB+fcbEXT+2
+ C275 270C                    beq gtExit      ;found match, leave as text file
+
+ C277 3003            gtNext  leax 3,x        ;move to next entry
+ C279 20E5                    bra gtLoop
+
+ C27B 86FF            gtBin   lda #$FF        ;set binary mode for FMS
+ C27D B7C87B                  sta FCB+fcbBIN
+ C280 7FC44B                  clr fWindow     ;can't be Windows text mode
+ C283 39              gtExit  rts
+
+                      * txtTbl- Table of "strong" text file types
+
+ C284 545854          txtTbl  fcc "TXT"
+ C287 41534D                  fcc "ASM"
+ C28A 424153                  fcc "BAS"
+ C28D 00                      fcb 0           ;terminate the table
+
+                      *---------------------------------------------------------
+--------------------
+                      * getParm - Get command line parameters. Look for 
+optional digit specifying
+                      *    text file flags W or L to force a text
+                      *    mode transfer with CR/LF ("W"indows flag) or just 
+CR ("L"inux flag).
+                      *    Returns zero false for invalid parameters.
+                      *---------------------------------------------------------
+--------------------
+ C28E BEC103          getParm ldx sioAddr     ;default to console port
+ C291 3004                    leax    4,x     ;bottom port is console
+ C293 BFC44D                  stx portAdr
+                          
+ C296 BDCD27          gpLoop  jsr NEXTCH      ;get next command line character
+ C299 810D                    cmpa #CR        ;terminate with CR or EOL 
+character 
+ C29B 2723                    beq gpExit
+ C29D B1CC02                  cmpa EOL
+ C2A0 271E                    beq gpExit
+
+ C2A2 8120                    cmpa    #SPACE  ;skip delimiters
+ C2A4 27F0                    beq gpLoop
+ C2A6 812C                    cmpa    #',
+ C2A8 27EC                    beq gpLoop
+
+ C2AA 8157                    cmpa #'W        ;Windows text file option?
+ C2AC 270C                    beq gpWin       ;yes
+
+ C2AE 814C                    cmpa #'L        ;Linux text file option?
+ C2B0 260E                    bne gpExit      ;no, invalid command line
+
+ C2B2 7CC44C                  inc fLinux      ;use Linux EOL (LF)
+ C2B5 7FC44B                  clr fWindow     ;not Windows EOL
+ C2B8 2003                    bra gpLinux
+
+ C2BA 7CC44B          gpWin   inc fWindow     ;set Windows EOL mode
+ C2BD 7FC87B          gpLinux clr FCB+fcbBIN  ;force text file mode
+ C2C0 39              gpExit  rts
+
+                      *---------------------------------------------------------
+--------------------
+                      * Message constants 
+                      *---------------------------------------------------------
+--------------------
+ C2C1 0D0A            mHelp   fcb CR,LF
+ C2C3 50435055542076          fcc "PCPUT v1.0 for Elektor EC-6809 FLEX"
+ C2CA 312E3020666F72
+ C2D1 20456C656B746F
+ C2D8 722045432D3638
+ C2DF 303920464C4558
+ C2E6 0D0A                    fcb CR,LF
+ C2E8 50682E20526F65          fcc "Ph. Roehr - 12/2023"
+ C2EF 6872202D203132
+ C2F6 2F32303233
+ C2FB 0D0A0A                  Fcb CR,LF,LF
+ C2FE 55736167653A            fcc "Usage:"
+ C304 0D0A                    fcb CR,LF
+ C306 20205043505554          fcc "  PCPUT FILE.EXT [W|L]"
+ C30D 2046494C452E45
+ C314 5854205B577C4C
+ C31B 5D
+ C31C 0D0A0A                  fcb CR,LF,LF
+ C31F 57686572653A            fcc "Where:"
+ C325 0D0A                    fcb CR,LF
+ C327 2020577C4C203D          fcc "  W|L = Force transfer as 'W'indows or 
+'L'inux text file"
+ C32E 20466F72636520
+ C335 7472616E736665
+ C33C 72206173202757
+ C343 27696E646F7773
+ C34A 206F7220274C27
+ C351 696E7578207465
+ C358 78742066696C65
+ C35F 0D0A0A                  fcb CR,LF,LF
+ C362 44656661756C74          fcc "Defaults:"
+ C369 733A
+ C36B 0D0A                    fcb CR,LF
+ C36D 20205472616E73          fcc "  Transfer Port: ACIA located at $EF60"
+ C374 66657220506F72
+ C37B 743A2041434941
+ C382 206C6F63617465
+ C389 64206174202445
+ C390 463630
+ C393 0D0A                    fcb CR,LF
+ C395 2020457874656E          fcc "  Extensions TXT, ASM, and BAS transfer as 
+a Windows"
+ C39C 73696F6E732054
+ C3A3 58542C2041534D
+ C3AA 2C20616E642042
+ C3B1 4153207472616E
+ C3B8 73666572206173
+ C3BF 20612057696E64
+ C3C6 6F7773
+ C3C9 0D0A                    fcb CR,LF
+ C3CB 2020636F6D7061          fcc "  compatible text file. All others as a 
+binary file."
+ C3D2 7469626C652074
+ C3D9 6578742066696C
+ C3E0 652E20416C6C20
+ C3E7 6F746865727320
+ C3EE 61732061206269
+ C3F5 6E617279206669
+ C3FC 6C652E
+ C3FF 0D0A04                  fcb CR,LF,EOT
+                          
+ C402 53746172742058  mStart  fcc "Start XMODEM receive on the PC now..."
+ C409 4D4F44454D2072
+ C410 65636569766520
+ C417 6F6E2074686520
+ C41E 5043206E6F772E
+ C425 2E2E
+ C427 04                      fcb EOT
+
+ C428 584D4F44454D20  mXmdm   fcc "XMODEM communication failure"
+ C42F 636F6D6D756E69
+ C436 636174696F6E20
+ C43D 6661696C757265
+ C444 0D0A04                  fcb CR,LF,EOT
+
+                      *---------------------------------------------------------
+--------------------
+                      * Data area
+                      *---------------------------------------------------------
+--------------------
+ C447                 bufPtr  rmb 2       ;pointer into transfer buffer
+ C449                 byteCnt rmb 1       ;byte count remaining
+ C44A                 prvByte rmb 1       ;previous byte read
+ C44B                 fWindow rmb 1       ;non-zero=Windows text (CR/LF for 
+EOL)
+ C44C                 fLinux  rmb 1       ;non-zero=Linux text (LF for EOL)
+
+ C44D                 portAdr rmb 2       ;serial port address
+ C44F                 xmRetry rmb 1       ;xmodem retry counter
+ C450                 blkNum  rmb 1       ;current xmodem block number
+ C451                 chkSum  rmb 1       ;packet checksum
+ C452                 ioSaveX rmb 2       ;save X for I/O subroutines
+
+ C454                 xfrBuf  rmb PKTLEN  ;XMODEM transfer buffer
+
+ C100                         end pcPut
+
+1 warning(s) in pass 2.
+
+SYMBOL TABLE
+       ACK 00 0006    BLKNUM 02 C450    BUFPTR 02 C447   BYTECNT 02 C449
+    CHKSUM 02 C451    CLEAR1 02 C12D    CLEAR2 02 C1EB    CLEAR3 02 C210
+    CPU2MH 00 0000   CPU2MHZ 02 C105        CR 00 000D     CTRLC 00 0003
+    DSKERR 02 C181   DSPHELP 02 C186       EOF 00 001A       EOL 00 CC02
+       EOT 00 0004   EOTEXIT 02 C20A   EOTFAIL 02 C20B       FCB 00 C840
+    FCBBIN 00 003B    FCBCMD 00 0000    FCBERR 00 0001    FCBEXT 00 000C
+    FILLLP 02 C1A1    FLINUX 02 C44C       FMS 00 D406    FMSCLS 00 D403
+    FMSEOF 00 0008   FWINDOW 02 C44B    GETCHR 00 CD15    GETFIL 00 CD2D
+   GETPARM 02 C28E   GETTYPE 02 C255    GPEXIT 02 C2C0   GPLINUX 02 C2BD
+    GPLOOP 02 C296     GPWIN 02 C2BA     GTBIN 02 C27B    GTEXIT 02 C283
+    GTLOOP 02 C260    GTNEXT 02 C277   IOSAVEX 02 C452        LF 00 000A
+     MHELP 02 C2C1    MSTART 02 C402     MXMDM 02 C428       NAK 00 0015
+    NEXTCH 00 CD27    OPENRD 00 0001     PCPUT 02 C100   PGMEXIT 02 C1AA
+    PKTLEN 00 0080   PKTLOOP 02 C1CC   PORTADR 02 C44D   PRVBYTE 02 C44A
+    PSTRNG 00 CD1E    RBLOOP 02 C23C    RBREAD 02 C250   RCVBYTE 02 C231
+    RDFILE 02 C13F    RDLOOP 02 C14A   RDNOTCR 02 C15A   RDSTORE 02 C16D
+   READERR 02 C18F     REEOT 02 C1FE    RESEND 02 C1B5    RPTERR 00 CD3F
+    SBLOOP 02 C225    SIOADD 00 EF5C   SIOADDR 02 C103   SIORDRF 00 0001
+   SIOTDRE 00 0002   SNDBYTE 02 C217   SNDDONE 02 C1A8    SNDEOT 02 C1F9
+   SNDFAIL 02 C1E6    SNDPKT 02 C1B0       SOH 00 0001     SPACE 00 0020
+     START 02 C106    TXTTBL 02 C284   WAITNAK 02 C132     WARMS 00 CD03
+    XFRBUF 02 C454    XMFAIL 02 C1F1   XMRETRY 02 C44F   XMTRIES 00 000A
+88 SYMBOLS
+
+0 error(s), 1 warning(s)
