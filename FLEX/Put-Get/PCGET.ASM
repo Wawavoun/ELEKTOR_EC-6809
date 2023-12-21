@@ -51,7 +51,7 @@ NAK     equ $15
 EOF     equ $1A         ;ctrl-z character
 XMTRIES equ 10          ;number of xmodem retries
 
-* MP-S2 serial board equates
+* Serial port equates
 
 SIOADD  equ $EF60-4     ;ACIA base address
 SIORDRF equ $01         ;receive data register full
@@ -439,14 +439,20 @@ gpLoop  jsr NEXTCH      ;get next command line character
     
         cmpa #'W        ;Windows text file option?
         beq gpText      ;yes
-
+        cmpa #'w        ;Windows text file option?
+        beq gpText      ;yes
+        
         cmpa #'L        ;Linux text file option?
         beq gpText      ;yes
-
+        cmpa #'l        ;Linux text file option?
+        beq gpText      ;yes
+        
+        cmpa #'R        ;random file?
+        beq gpRand      ;yes
         cmpa #'r        ;random file?
         bne gpExit      ;no, have bad command line
-    
-        lda #2          ;indicate random file
+            
+gpRand  lda #2          ;indicate random file
         sta FCB+fcbMAP
         clra            ;exit with zero status
         rts 

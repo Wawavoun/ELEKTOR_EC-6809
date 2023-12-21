@@ -47,7 +47,7 @@ NAK equ $15
 EOF equ $1A             ;ctrl-z character
 XMTRIES equ 10          ;number of xmodem retries
 
-* MP-S serial board equates
+* Serial port equates
 
 SIOADD  equ $EF60-4     ;ACIA base address
 SIORDRF equ $01         ;receive data register full
@@ -368,11 +368,15 @@ gpLoop  jsr NEXTCH      ;get next command line character
 
         cmpa #'W        ;Windows text file option?
         beq gpWin       ;yes
-
+        cmpa #'w        ;Windows text file option?
+        beq gpWin       ;yes
+         
         cmpa #'L        ;Linux text file option?
+        beq gpLin1      ;yes
+        cmpa #'l        ;Linux text file option?
         bne gpExit      ;no, invalid command line
-
-        inc fLinux      ;use Linux EOL (LF)
+          
+gpLin1  inc fLinux      ;use Linux EOL (LF)
         clr fWindow     ;not Windows EOL
         bra gpLinux
 
