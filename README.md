@@ -9,14 +9,9 @@ For french version see in Elektor n°100 10/1986 here : https://github.com/Wawav
 
 ESS540 is the boot rom.
 
-This eprom could need modification depending the screen you use (6845 table start at $310).
+This eprom could need modification depending the screen you use (6845 table start at $310). The eprom files are with the original table from Elektor. Mine is in a separate text file. Also drive routines are for 16 sectors /track/side. Usually Flex use 18 sectors /track/side. Put $12 into $F1EE and $F1EF for change to 18 sectors by side.
 
-The eprom is with the original table from Elektor.
-
-Mine is in a separate text file.
-
-Also drive routines are for 16 sectors /track/side. Usually Flex use 18 sectors /track/side. Put $12 into $F1EE and $F1EF for change to 18 sectors by side.
-The ESS541 eprom switch serial port to 2400 baud. Put NOP ($12) at $F905 and $F906 to avoid this and stay at 9600 baud.
+The ESS541 (monitor) eprom switch serial port to 2400 baud. Put NOP ($12) at $F905 and $F906 to avoid this and stay at 9600 baud.
 
 Again I leave the original value. Change it if you want.
 
