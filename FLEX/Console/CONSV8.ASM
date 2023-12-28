@@ -1,0 +1,121 @@
+
+;* ELEKTOR EC6809 CONSOLE I/O DRIVER
+;* 11/2023 PH. ROEHR
+
+VIA     EQU     $EF80
+CHPR    EQU     $C700       
+
+;* IN CASE OF INTERRUPT THE ASSIST-09 EPROM
+;* JUMP AT THE ADDRESS STORED AT
+JSWIVE  EQU     $DFC2+6    ; FOR SWI3
+JIRQVE  EQU     $DFC2+12   ; FOR IRQ
+
+WTLDVI  EQU     $F033      ; GET // DATA INPUT
+INIT    EQU     $F036      ; INIT OF VIA, ACIA, CRTC        
+VIARDY  EQU     $F039      ; TEST // DATA READY        
+JMPADR  EQU     $F03C      ; PUT CHAR ON SCREEN
+GDTVIE  EQU     $F03F      ; GET // DATA INPUT WITH ECHO
+ERTS    EQU     $F01B      ; SIMPLE RTS 
+
+COLDS   EQU     $CD00
+
+        ORG     $D3E5
+
+INCHN   FDB     JINCHN     ; INPUT CHARACTER WITHOUT ECHO
+IHNDLR  FDB     JIHNDLR    ; IRQ INTERRUPT HANDLER
+SWIVEC  FDB     JSWIVE     ; SWI3 VECTOR LOCATION
+IRQVEC  FDB     JIRQVE     ; IRQ VECTOR LOCATION
+TMOFF   FDB     JTMOFF     ; TIMER OFF ROUTINE
+TMON    FDB     JTMON      ; TIMER ON ROUTINE
+TMINT   FDB     JTMINT     ; TIMER INITIALIZATION
+MONITR  FDB     JMONIT     ; MONITOR ENTRY ADDRESS
+TINIT   FDB     ERTS       ; TERMINAL INITIALIZATION
+STAT    FDB     JSTAT      ; CHECK TERMINAL STATUS
+OUTCH   FDB     JOUTCH     ; OUTPUT CHARACTER
+INCH    FDB     JINCH      ; INPUT CHARACTER WITH ECHO
+
+        ORG     $D370
+
+;* INPUT CHARACTER WITHOUT ECHO
+
+JINCHN  JSR     WTLDVI   
+        ANDA    #$7F       ; CLEAR PARITY BIT
+        RTS
+
+;* INPUT CHARACTER WITH ECHO
+
+JINCH   JSR     GDTVIE
+        ANDA    #$7F       ; CLEAR PARITY BIT
+        RTS
+
+;* OUTPUT CHAR
+
+JOUTCH  PSHS    A,B,CC,DP,X,Y,U
+        JSR     JMPADR
+        PULS    A,B,CC,DP,X,Y,U,PC
+
+;* CHECK VIA STATUS (IF CHAR IS WAITING Z=1, ELSE Z=0)   
+   
+JSTAT   PSHS    A
+        JSR     VIARDY
+        PULS    A,PC 
+        
+;* MONITOR ENTRY ADDRESS
+
+JMONIT  SWI             
+        FCB     $08
+        
+;* TIMER INITIALIZATION    
+    
+JTMINT  LDA    #$40        
+        STA    VIA+$0D     ; CLEAR INTERRUPT FLAG REGISTER                         
+        LDD    #15000      ; 15 MS INTERRUPTS             
+        STB    VIA+$04     ; WRITE LOW ORDER LATCH        
+        STA    VIA+$05     ; WRITE HIGH ORDER COUNTER
+        LDA    VIA+$0B
+        ANDA   #%01111111  ; TIMER 1 NO OUTPUT ON PB7
+        ORA    #%01000000  ; T1 CONTINUOUS INTERRUPT MODE
+        STA    VIA+$0B     ; START T1
+        RTS        
+        
+;* TIMER ON ROUTINE    
+    
+JTMON   LDA    #%11000000  ; $C0 ENABLE T1 IRQ        
+        STA    VIA+$0E        
+        RTS        
+        
+;* TIMER OFF ROUTINE  
+     
+JTMOFF  LDA    #%01000000  ; $40 DISABLE T1 IRQ       
+        STA    VIA+$0E       
+        RTS       
+
+;* IRQ INTERCEPTION    
+    
+JIHNDLR PSHS   A           ; SAVES ON STACK
+        LDA    VIA+$0D     ; GET VIA INTERRUPT FLAG REGISTER
+        ASLA 
+        ASLA               ; GET BIT 6 INTO CARRY
+        BCC    NSPOOL      ; BRANCH IF CARRY NOT SET    
+        LDA    #%01000000  ; $40 
+        STA    VIA+$0D     ; CLEAR INTERRUPT FLAG REGISTER BIT 6
+        PULS   A           ; RESTORE STACK
+        JMP    CHPR        ; JUMP TO SPOOLER
+NSPOOL  PULS   A           ; RESTORE STACK
+        RTI
+
+;* SET VERIFY OFF
+        ORG    $D435
+        FCB    $00
+        
+;* SET PARAMETERS
+        ORG    $CC00
+;*   TTYSET PARAMETERS        
+        FCB    $08,$18,$3A
+        FCB    $18,$50,$18
+        FCB    $00,$08,$00
+        FCB    $59,$1B
+;*   ASN PARAMETERS       
+        FCB    $00,$01
+        
+        END    COLDS
