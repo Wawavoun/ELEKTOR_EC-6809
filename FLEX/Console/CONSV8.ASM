@@ -3,12 +3,16 @@
 ;* 11/2023 PH. ROEHR
 
 VIA     EQU     $EF80
-CHPR    EQU     $C700       
+CHPR    EQU     $C700
+VRYFLG  EQU     $D435
+TTYPRM  EQU     $CC00
+ASNPRM  EQU     $CC0B
+VECTBL  EQU     $DFC2    
 
 ;* IN CASE OF INTERRUPT THE ASSIST-09 EPROM
 ;* JUMP AT THE ADDRESS STORED AT
-JSWIVE  EQU     $DFC2+6    ; FOR SWI3
-JIRQVE  EQU     $DFC2+12   ; FOR IRQ
+JSWIVE  EQU     VECTBL+6   ; FOR SWI3
+JIRQVE  EQU     VECTBL+12  ; FOR IRQ
 
 WTLDVI  EQU     $F033      ; GET // DATA INPUT
 INIT    EQU     $F036      ; INIT OF VIA, ACIA, CRTC        
@@ -63,7 +67,7 @@ JSTAT   PSHS    A
 ;* MONITOR ENTRY ADDRESS
 
 JMONIT  SWI             
-        FCB     $08
+        FCB    $08
         
 ;* TIMER INITIALIZATION    
     
@@ -105,17 +109,18 @@ NSPOOL  PULS   A           ; RESTORE STACK
         RTI
 
 ;* SET VERIFY OFF
-        ORG    $D435
+        ORG    VRYFLG
         FCB    $00
         
-;* SET PARAMETERS
-        ORG    $CC00
-;*   TTYSET PARAMETERS        
+;* SET TTYSET PARAMETERS
+        ORG    TTYPRM        
         FCB    $08,$18,$3A
         FCB    $18,$50,$18
         FCB    $00,$08,$00
         FCB    $59,$1B
-;*   ASN PARAMETERS       
+        
+;* SET ASN PARAMETERS 
+        ORG    ASNPRM   
         FCB    $00,$01
         
         END    COLDS

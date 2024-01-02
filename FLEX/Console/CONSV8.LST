@@ -3,16 +3,19 @@
                       ;* 11/2023 PH. ROEHR
 
  EF80                 VIA     EQU     $EF80
- C700                 CHPR    EQU     $C700       
+ C700                 CHPR    EQU     $C700
+ D435                 VRYFLG  EQU     $D435
+ CC00                 TTYPRM  EQU     $CC00
+ CC0B                 ASNPRM  EQU     $CC0B
+ DFC2                 VECTBL  EQU     $DFC2    
 
                       ;* IN CASE OF INTERRUPT THE ASSIST-09 EPROM
                       ;* JUMP AT THE ADDRESS STORED AT
- DFC8                 JSWIVE  EQU     $DFC2+6    ; FOR SWI3
- DFCE                 JIRQVE  EQU     $DFC2+12   ; FOR IRQ
+ DFC8                 JSWIVE  EQU     VECTBL+6   ; FOR SWI3
+ DFCE                 JIRQVE  EQU     VECTBL+12  ; FOR IRQ
 
  F033                 WTLDVI  EQU     $F033      ; GET // DATA INPUT
- F036                 INIT    EQU     $F036      ; INIT OF VIA, ACIA, CRTC     
-   
+ F036                 INIT    EQU     $F036      ; INIT OF VIA, ACIA, CRTC        
  F039                 VIARDY  EQU     $F039      ; TEST // DATA READY        
  F03C                 JMPADR  EQU     $F03C      ; PUT CHAR ON SCREEN
  F03F                 GDTVIE  EQU     $F03F      ; GET // DATA INPUT WITH ECHO
@@ -22,8 +25,7 @@
 
                               ORG     $D3E5
 
- D3E5 D370            INCHN   FDB     JINCHN     ; INPUT CHARACTER WITHOUT 
-ECHO
+ D3E5 D370            INCHN   FDB     JINCHN     ; INPUT CHARACTER WITHOUT ECHO
  D3E7 D3B1            IHNDLR  FDB     JIHNDLR    ; IRQ INTERRUPT HANDLER
  D3E9 DFC8            SWIVEC  FDB     JSWIVE     ; SWI3 VECTOR LOCATION
  D3EB DFCE            IRQVEC  FDB     JIRQVE     ; IRQ VECTOR LOCATION
@@ -57,7 +59,6 @@ ECHO
  D381 35FF                    PULS    A,B,CC,DP,X,Y,U,PC
 
                       ;* CHECK VIA STATUS (IF CHAR IS WAITING Z=1, ELSE Z=0)   
-
                          
  D383 3402            JSTAT   PSHS    A
  D385 BDF039                  JSR     VIARDY
@@ -66,22 +67,18 @@ ECHO
                       ;* MONITOR ENTRY ADDRESS
 
  D38A 3F              JMONIT  SWI             
- D38B 08                      FCB     $08
+ D38B 08                      FCB    $08
                               
                       ;* TIMER INITIALIZATION    
                           
  D38C 8640            JTMINT  LDA    #$40        
- D38E B7EF8D                  STA    VIA+$0D     ; CLEAR INTERRUPT FLAG 
-REGISTER                         
- D391 CC3A98                  LDD    #15000      ; 15 MS INTERRUPTS            
- 
- D394 F7EF84                  STB    VIA+$04     ; WRITE LOW ORDER LATCH       
- 
+ D38E B7EF8D                  STA    VIA+$0D     ; CLEAR INTERRUPT FLAG REGISTER                         
+ D391 CC3A98                  LDD    #15000      ; 15 MS INTERRUPTS             
+ D394 F7EF84                  STB    VIA+$04     ; WRITE LOW ORDER LATCH        
  D397 B7EF85                  STA    VIA+$05     ; WRITE HIGH ORDER COUNTER
  D39A B6EF8B                  LDA    VIA+$0B
  D39D 847F                    ANDA   #%01111111  ; TIMER 1 NO OUTPUT ON PB7
- D39F 8A40                    ORA    #%01000000  ; T1 CONTINUOUS INTERRUPT 
-MODE
+ D39F 8A40                    ORA    #%01000000  ; T1 CONTINUOUS INTERRUPT MODE
  D3A1 B7EF8B                  STA    VIA+$0B     ; START T1
  D3A4 39                      RTS        
                               
@@ -100,45 +97,45 @@ MODE
                       ;* IRQ INTERCEPTION    
                           
  D3B1 3402            JIHNDLR PSHS   A           ; SAVES ON STACK
- D3B3 B6EF8D                  LDA    VIA+$0D     ; GET VIA INTERRUPT FLAG 
-REGISTER
+ D3B3 B6EF8D                  LDA    VIA+$0D     ; GET VIA INTERRUPT FLAG REGISTER
  D3B6 48                      ASLA 
  D3B7 48                      ASLA               ; GET BIT 6 INTO CARRY
  D3B8 240A                    BCC    NSPOOL      ; BRANCH IF CARRY NOT SET    
  D3BA 8640                    LDA    #%01000000  ; $40 
- D3BC B7EF8D                  STA    VIA+$0D     ; CLEAR INTERRUPT FLAG 
-REGISTER BIT 6
+ D3BC B7EF8D                  STA    VIA+$0D     ; CLEAR INTERRUPT FLAG REGISTER BIT 6
  D3BF 3502                    PULS   A           ; RESTORE STACK
  D3C1 7EC700                  JMP    CHPR        ; JUMP TO SPOOLER
  D3C4 3502            NSPOOL  PULS   A           ; RESTORE STACK
  D3C6 3B                      RTI
 
                       ;* SET VERIFY OFF
-                                      ORG    $D435
- D435 00                              FCB    $00
-                                      
-                      ;* SET PARAMETERS
-                              ORG    $CC00
-                      ;*   TTYSET PARAMETERS        
+                              ORG    VRYFLG
+ D435 00                      FCB    $00
+                              
+                      ;* SET TTYSET PARAMETERS
+                              ORG    TTYPRM        
  CC00 08183A                  FCB    $08,$18,$3A
  CC03 185018                  FCB    $18,$50,$18
  CC06 000800                  FCB    $00,$08,$00
  CC09 591B                    FCB    $59,$1B
-                      ;*   ASN PARAMETERS       
+                              
+                      ;* SET ASN PARAMETERS 
+                              ORG    ASNPRM   
  CC0B 0001                    FCB    $00,$01
                               
  CD00                         END    COLDS
 
 SYMBOL TABLE
-      CHPR 00 C700     COLDS 00 CD00      ERTS 00 F01B    GDTVIE 00 F03F
-    IHNDLR 02 D3E7      INCH 02 D3FB     INCHN 02 D3E5      INIT 00 F036
-    IRQVEC 02 D3EB   JIHNDLR 02 D3B1     JINCH 02 D376    JINCHN 02 D370
-    JIRQVE 00 DFCE    JMONIT 02 D38A    JMPADR 00 F03C    JOUTCH 02 D37C
-     JSTAT 02 D383    JSWIVE 00 DFC8    JTMINT 02 D38C    JTMOFF 02 D3AB
-     JTMON 02 D3A5    MONITR 02 D3F3    NSPOOL 02 D3C4     OUTCH 02 D3F9
-      STAT 02 D3F7    SWIVEC 02 D3E9     TINIT 02 D3F5     TMINT 02 D3F1
-     TMOFF 02 D3ED      TMON 02 D3EF       VIA 00 EF80    VIARDY 00 F039
+    ASNPRM 00 CC0B      CHPR 00 C700     COLDS 00 CD00      ERTS 00 F01B
+    GDTVIE 00 F03F    IHNDLR 02 D3E7      INCH 02 D3FB     INCHN 02 D3E5
+      INIT 00 F036    IRQVEC 02 D3EB   JIHNDLR 02 D3B1     JINCH 02 D376
+    JINCHN 02 D370    JIRQVE 00 DFCE    JMONIT 02 D38A    JMPADR 00 F03C
+    JOUTCH 02 D37C     JSTAT 02 D383    JSWIVE 00 DFC8    JTMINT 02 D38C
+    JTMOFF 02 D3AB     JTMON 02 D3A5    MONITR 02 D3F3    NSPOOL 02 D3C4
+     OUTCH 02 D3F9      STAT 02 D3F7    SWIVEC 02 D3E9     TINIT 02 D3F5
+     TMINT 02 D3F1     TMOFF 02 D3ED      TMON 02 D3EF    TTYPRM 00 CC00
+    VECTBL 00 DFC2       VIA 00 EF80    VIARDY 00 F039    VRYFLG 00 D435
     WTLDVI 00 F033
-33 SYMBOLS
+37 SYMBOLS
 
 0 error(s), 0 warning(s)
