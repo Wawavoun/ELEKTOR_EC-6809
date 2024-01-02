@@ -1,18 +1,39 @@
-MF310   FCB     $69                     ; TOTAL HORIZONTAL
-        FCB     $50                     ; AFFICHAGE HORIZONTAL 80
-        FCB     $57                     ; H SYNC POSITION 100
-        FCB     $08                     ; LARGEUR SYNC
-        FCB     $21                     ; TOTAL VERTICAL
-        FCB     $06                     ; V TOTAL ADJUST
-        FCB     $18                     ; AFFICHAGE VERTICAL 24
-        FCB     $1C                     ; V SYNC POSITION
-        FCB     $00                     ; MODE INTERLACE 0
-        FCB     $09                     ; LINE MAX SCAN ADRESSE
-        FCB     $60                     ; CURSOR START
-        FCB     $09                     ; CURSOR END
-        FCB     $00                     ; START H
-        FCB     $00                     ; START L
-        FCB     $00                     ; CURSOR START H
-        FCB     $00                     ; CURSOR START L
-        FCB     $50
-        FCB     $17 
+; CRTC PHILIPPE'S TABLE FOR PHILIPS LCD SCREEN
+MF310    FCB     $69                     ; TOTAL HORIZONTAL
+         FCB     $50                     ; AFFICHAGE HORIZONTAL 80
+         FCB     $56                     ; H SYNC POSITION 100
+         FCB     $08                     ; LARGEUR SYNC
+         FCB     $1B                     ; TOTAL VERTICAL
+         FCB     $05                     ; V TOTAL ADJUST
+         FCB     $18                     ; AFFICHAGE VERTICAL 24
+         FCB     $18                     ; V SYNC POSITION
+         FCB     $00                     ; MODE INTERLACE 0
+         FCB     $0A                     ; LINE MAX SCAN ADDRESS
+         FCB     $60                     ; CURSOR START
+         FCB     $09                     ; CURSOR END
+         FCB     $00                     ; START H
+         FCB     $00                     ; START L
+         FCB     $00                     ; CURSOR START H
+         FCB     $00                     ; CURSOR START L
+         FCB     $50
+         FCB     $17
+
+; 6845 CRTC PHILIPPE'S TABLE FOR TECHWOOD LCD SCREEN
+;MF310    FCB     $69                     ; TOTAL HORIZONTAL
+;         FCB     $50                     ; AFFICHAGE HORIZONTAL 80
+;         FCB     $57                     ; H SYNC POSITION 100
+;         FCB     $08                     ; LARGEUR SYNC
+;         FCB     $1B                     ; TOTAL VERTICAL
+;         FCB     $03                     ; V TOTAL ADJUST
+;         FCB     $18                     ; AFFICHAGE VERTICAL 24
+;         FCB     $19                     ; V SYNC POSITION
+;         FCB     $00                     ; MODE INTERLACE 0
+;         FCB     $0A                     ; LINE MAX SCAN ADDRESS
+;         FCB     $60                     ; CURSOR START
+;         FCB     $09                     ; CURSOR END
+;         FCB     $00                     ; START H
+;         FCB     $00                     ; START L
+;         FCB     $00                     ; CURSOR START H
+;         FCB     $00                     ; CURSOR START L
+;         FCB     $50
+;         FCB     $17
