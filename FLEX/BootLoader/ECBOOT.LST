@@ -12,7 +12,7 @@ EC05                  TRKREG  EQU     $EC05
 EC06                  SECREG  EQU     $EC06
 EC07                  DATREG  EQU     $EC07
 EC0C                  DRVREG  EQU     $EC0C
-C0FF                  STACK   EQU     $C0FF
+C080                  STACK   EQU     $C080
 C300                  SCTBUF  EQU     $C300
                       
 C100                          ORG     $C100
@@ -28,7 +28,7 @@ C108  C100            TADR    FCB     $C1,$00     ; TRANSFER ADDRESS
 C10A  0000            LADR1   FCB     $00,$00
 C10C  00                      FCB     $00
                       
-C10D  10CEC0FF        CMDSTA  LDS     #STACK      ; SETUP STACK
+C10D  10CEC080        CMDSTA  LDS     #STACK      ; SETUP STACK
 C111  FCC105                  LDD     FLXTRK      ; GET TRANSFER ADDRESS
 C114  FDC300                  STD     SCTBUF      ; SETUP STARTING TRK & SCT
 C117  108EC400                LDY     #SCTBUF+256
