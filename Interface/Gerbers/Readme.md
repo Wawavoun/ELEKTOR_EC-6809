@@ -1,1 +1,1 @@
-This zip file contain all the gerber required to build the board.
+This zip file contain all the gerber files required to build the board.
