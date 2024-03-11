@@ -6,3 +6,10 @@ This interface board can be connected to the parallel port of the Elektor EC-680
 - a SPI port (connected to PB2, PB3, PB4 and PB5).
 
 ![Interface](https://github.com/Wawavoun/ELEKTOR_EC-6809/assets/94134401/703ab4df-3d6d-4109-94e1-23eab823f316)
+
+BOM is simple :
+C1    100µF / 25V
+C2    100nF ceramic
+D1    1N4148
+R2    330R
+others parts are just connectors....
