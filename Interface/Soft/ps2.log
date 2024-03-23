@@ -1,80 +1,0 @@
-PS/2 --> Parallel ASCII Adapter v0.01
-Initializing PS/2 keyboard...
-Loading configuration...
-
-(1) Strobe Type  ............. : POS
-(2) Strobe Length ............ : 5ms
-(3) Output Logic ............. : POS
-(4) Propagation Delay ........ : 100us
-(5) Backspace sends .......... : BACKSPACE (0x08)
-
-Characters typed on this console will be sent to host via parallel
-interface.
-
-CTRL-D = toggle display mode    CTRL-R = PS/2 reset
-CTRL-T = test mode              CTRL-Y = change coonfiguration
-
-Configuration Menu
-
-(1) Strobe Type  ............. : POS
-(2) Strobe Length ............ : 5ms
-(3) Output Logic ............. : POS
-(4) Propagation Delay ........ : 100us
-(5) Backspace sends .......... : BACKSPACE (0x08)
-
-[1-5], [S]ave, [D]efaults, [E]xit: 22
-Strobe Length in ms (1-255): 1100Configuration Menu
-
-(1) Strobe Type  ............. : POS
-(2) Strobe Length ............ : 10ms
-(3) Output Logic ............. : POS
-(4) Propagation Delay ........ : 100us
-(5) Backspace sends .......... : BACKSPACE (0x08)
-
-[1-5], [S]ave, [D]efaults, [E]xit: sSaving...
-
-Configuration Menu
-
-(1) Strobe Type  ............. : POS
-(2) Strobe Length ............ : 10ms
-(3) Output Logic ............. : POS
-(4) Propagation Delay ........ : 100us
-(5) Backspace sends .......... : BACKSPACE (0x08)
-
-[1-5], [S]ave, [D]efaults, [E]xit: eExit
-
-(1) Strobe Type  ............. : POS
-(2) Strobe Length ............ : 10ms
-(3) Output Logic ............. : POS
-(4) Propagation Delay ........ : 100us
-(5) Backspace sends .......... : BACKSPACE (0x08)
-
-Characters typed on this console will be sent to host via parallel
-interface.
-
-CTRL-D = toggle display mode    CTRL-R = PS/2 reset
-CTRL-T = test mode              CTRL-Y = change coonfiguration
-
-Test
-[S]et Strobe, [C]lear Strobe, [W]rite Value, [E]xit: sSet Strobe
-[S]et Strobe, [C]lear Strobe, [W]rite Value, [E]xit: cClear Strobe
-[S]et Strobe, [C]lear Strobe, [W]rite Value, [E]xit: wWrite Value
-Enter Value (does not invert!) [0-255]: 112288
-[S]et Strobe, [C]lear Strobe, [W]rite Value, [E]xit: e
-Returning to normal operation...
-Characters typed on this console will be sent to host via parallel
-interface.
-
-CTRL-D = toggle display mode    CTRL-R = PS/2 reset
-CTRL-T = test mode              CTRL-Y = change coonfiguration
-
-<display on>t[0x74]e[0x65]s[0x73]t[0x74][0x88][0x87]Test
-[S]et Strobe, [C]lear Strobe, [W]rite Value, [E]xit: e
-Returning to normal operation...
-Characters typed on this console will be sent to host via parallel
-interface.
-
-CTRL-D = toggle display mode    CTRL-R = PS/2 reset
-CTRL-T = test mode              CTRL-Y = change coonfiguration
-
-<display off>[B[BCChhaarraacctteerrss  ttyyppeedd  oonn  sseerriiaall  ccoonnssoollee  wwiillll  bbee  sseenntt,,  jjuusstt  lliikkee  kkeeyyss  oonn  tthhee  ppss//22  kkeeyybbooaarrdd......
