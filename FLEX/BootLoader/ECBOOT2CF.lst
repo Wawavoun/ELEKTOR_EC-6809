@@ -1,0 +1,475 @@
+
+                      ;* COMPACT FLASH FLEX LOADER FOR ELEKTOR EC-6809
+                      ;*
+                      ;* THIS VERSION BOOT FROM CF 1 $EE80 MAPPED AS DISK 2.
+                      ;*
+                      ;* ADAPTED BY PH.ROEHR 08/2024
+
+                      ;* CONSTANTS
+
+                      ;* EXTERNAL LABEL EQUATES
+
+ C080                 STACK       EQU     $C080
+ C300                 SCTBUF      EQU     $C300
+ E82A                 RDBOOT      EQU     $E82A
+ DEB0                 CFOK        EQU     $DEB0
+ DEB6                 CFTRK       EQU     CFOK+6
+ CC0B                 ASNPRM      EQU     $CC0B      ; ASN PARAMETERS
+ C843                 STRUPDSK    EQU     $C843      ; DISK NUMBER FOR STARTUP.TXT
+ EEB0                 ROMLATCH    EQU     $EEB0
+
+                                  ORG     $C100
+
+ C100 200A            CMDADR      BRA    CMDSTA
+
+ C102 0000                        FCB     $00,$00
+ C104 00                          FCB     $00
+ C105 3B              FLXTRK      FCB     $3B         ; FILE START TRACK
+ C106 38                          FCB     $38         ; FILE START SECTOR
+ C107 C100            TADR        FCB     $C1,$00     ; TRANSFER ADDRESS
+ C109 0000            LADR1       FCB     $00,$00
+ C10B 00                          FCB     $00
+
+ C10C 10CEC080        CMDSTA      LDS     #STACK      ; SETUP STACK
+ C110 C601                        LDB     #$01        ; SET I/O EPROM PAGE 1
+ C112 F7EEB0                      STB     ROMLATCH
+ C115 FCC105                      LDD     FLXTRK      ; GET FLEX.SYS TRACK & SECTOR
+ C118 FDC300                      STD     SCTBUF      ; SETUP STARTING TRK & SCT INTO BUFFER FOR 1ST SECTOR READ
+ C11B 108EC400                    LDY     #SCTBUF+256
+
+                      ;* MESSAGES
+
+ C11F 8EC186                      LDX    #MLOAD
+ C122 3F                          SWI
+ C123 03                          FCB     $03         ; PRINT
+ C124 3F                          SWI
+ C125 06                          FCB     $06
+
+                      ;* PERFORM ACTUAL BOOT LOAD
+
+ C126 8D35            LOAD1       BSR     GETCH       ; GET A CHARACTER
+ C128 8102                        CMPA    #$02        ; DATA RECORD HEADER ?
+ C12A 2710                        BEQ     LOAD2       ; SKIP IF SO
+ C12C 8116                        CMPA    #$16        ; TRANSFER ADDRESS HEADER ?
+ C12E 26F6                        BNE     LOAD1       ; LOOP IF NEITHER
+ C130 8D2B                        BSR     GETCH       ; GET TRANSFER ADDRESS
+ C132 B7C107                      STA     TADR
+ C135 8D26                        BSR     GETCH
+ C137 B7C108                      STA     TADR+1
+ C13A 20EA                        BRA     LOAD1       ; CONTINUE LOAD
+ C13C 8D1F            LOAD2       BSR     GETCH       ; GET LOAD ADDRESS
+ C13E B7C109                      STA     LADR1
+ C141 8D1A                        BSR     GETCH
+ C143 B7C10A                      STA     LADR1+1
+ C146 8D15                        BSR     GETCH       ; GET BYTE COUNT
+ C148 1F89                        TFR     A,B         ; PUT IN B
+ C14A 4D                          TSTA
+ C14B 27D9                        BEQ     LOAD1       ; LOOP IF COUNT = 0
+ C14D BEC109                      LDX     LADR1       ; GET LOAD ADDRESS
+ C150 3414            LOAD3       PSHS    B,X
+ C152 8D09                        BSR     GETCH       ; GET A DATA CHARACTER
+ C154 3514                        PULS    B,X
+ C156 A780                        STA     ,X+         ; PUT CHARACTER
+ C158 5A                          DECB                ; END OF DATA IN RECORD ?
+ C159 26F5                        BNE     LOAD3       ; LOOP IF NOT
+ C15B 20C9                        BRA     LOAD1       ; GET ANOTHER RECORD
+
+                      ;* GET CHARACTER ROUTINE
+
+ C15D 108CC400        GETCH       CMPY    #SCTBUF+256 ; OUT OF DATA ?
+ C161 2611                        BNE     GETCH4      ; GO READ CHARACTER IF NOT
+ C163 8EC300                      LDX     #SCTBUF     ; POINT TO BUFFER
+ C166 EC00                        LDD     0,X         ; GET FORWARD LINK
+ C168 270D                        BEQ     GO          ; IF ZERO, FILE IS LOADED
+ C16A FDDEB6                      STD     CFTRK       ; STORE TRK-SEC
+ C16D BDE82A                      JSR     RDBOOT      ; READ NEXT SECTOR
+ C170 108EC304                    LDY     #SCTBUF+4   ; POINT PAST LINK
+ C174 A6A0            GETCH4      LDA     ,Y+         ; ELSE GET A CHARACTER
+ C176 39                          RTS
+
+                      ;* FILE IS LOADED, PREPARE AND JUMP TO IT
+
+ C177 CC0202          GO          LDD     #$0202      ; IN CASE OF CF BOOT
+ C17A FDCC0B                      STD     ASNPRM      ; SET S AND W DISKS AS 2
+ C17D 8602                        LDA     #$02
+ C17F B7C843                      STA     STRUPDSK    ; CHANGE DISK NUMBER TO 2 FOR STARTUP.TXT
+ C182 6E9FC107                    JMP     [TADR]
+
+ C186 4C6F6164696E67  MLOAD       FCC     "Loading from CF..."
+ C18D 2066726F6D2043
+ C194 462E2E2E
+ C198 04                          FCB     $04
+
+ C199 00                          FCB     $00
+ C19A 00                          FCB     $00
+ C19B 00                          FCB     $00
+ C19C 00                          FCB     $00
+ C19D 00                          FCB     $00
+ C19E 00                          FCB     $00
+ C19F 00                          FCB     $00
+ C1A0 00                          FCB     $00
+ C1A1 00                          FCB     $00
+ C1A2 00                          FCB     $00
+ C1A3 00                          FCB     $00
+ C1A4 00                          FCB     $00
+ C1A5 00                          FCB     $00
+ C1A6 00                          FCB     $00
+ C1A7 00                          FCB     $00
+ C1A8 00                          FCB     $00
+ C1A9 00                          FCB     $00
+ C1AA 00                          FCB     $00
+ C1AB 00                          FCB     $00
+ C1AC 00                          FCB     $00
+ C1AD 00                          FCB     $00
+ C1AE 00                          FCB     $00
+ C1AF 00                          FCB     $00
+ C1B0 00                          FCB     $00
+ C1B1 00                          FCB     $00
+ C1B2 00                          FCB     $00
+ C1B3 00                          FCB     $00
+ C1B4 00                          FCB     $00
+ C1B5 00                          FCB     $00
+ C1B6 00                          FCB     $00
+ C1B7 00                          FCB     $00
+ C1B8 00                          FCB     $00
+ C1B9 00                          FCB     $00
+ C1BA 00                          FCB     $00
+ C1BB 00                          FCB     $00
+ C1BC 00                          FCB     $00
+ C1BD 00                          FCB     $00
+ C1BE 00                          FCB     $00
+ C1BF 00                          FCB     $00
+ C1C0 00                          FCB     $00
+ C1C1 00                          FCB     $00
+ C1C2 00                          FCB     $00
+ C1C3 00                          FCB     $00
+ C1C4 00                          FCB     $00
+ C1C5 00                          FCB     $00
+ C1C6 00                          FCB     $00
+ C1C7 00                          FCB     $00
+ C1C8 00                          FCB     $00
+ C1C9 00                          FCB     $00
+ C1CA 00                          FCB     $00
+ C1CB 00                          FCB     $00
+ C1CC 00                          FCB     $00
+ C1CD 00                          FCB     $00
+ C1CE 00                          FCB     $00
+ C1CF 00                          FCB     $00
+ C1D0 00                          FCB     $00
+ C1D1 00                          FCB     $00
+ C1D2 00                          FCB     $00
+ C1D3 00                          FCB     $00
+ C1D4 00                          FCB     $00
+ C1D5 00                          FCB     $00
+ C1D6 00                          FCB     $00
+ C1D7 00                          FCB     $00
+ C1D8 00                          FCB     $00
+ C1D9 00                          FCB     $00
+ C1DA 00                          FCB     $00
+ C1DB 00                          FCB     $00
+ C1DC 00                          FCB     $00
+ C1DD 00                          FCB     $00
+ C1DE 00                          FCB     $00
+ C1DF 00                          FCB     $00
+ C1E0 00                          FCB     $00
+ C1E1 00                          FCB     $00
+ C1E2 00                          FCB     $00
+ C1E3 00                          FCB     $00
+ C1E4 00                          FCB     $00
+ C1E5 00                          FCB     $00
+ C1E6 00                          FCB     $00
+ C1E7 00                          FCB     $00
+ C1E8 00                          FCB     $00
+ C1E9 00                          FCB     $00
+ C1EA 00                          FCB     $00
+ C1EB 00                          FCB     $00
+ C1EC 00                          FCB     $00
+ C1ED 00                          FCB     $00
+ C1EE 00                          FCB     $00
+ C1EF 00                          FCB     $00
+ C1F0 00                          FCB     $00
+ C1F1 00                          FCB     $00
+ C1F2 00                          FCB     $00
+ C1F3 00                          FCB     $00
+ C1F4 00                          FCB     $00
+ C1F5 00                          FCB     $00
+ C1F6 00                          FCB     $00
+ C1F7 00                          FCB     $00
+ C1F8 00                          FCB     $00
+ C1F9 00                          FCB     $00
+ C1FA 00                          FCB     $00
+ C1FB 00                          FCB     $00
+
+                                  ORG     $C200-4
+ C1FC 464C4558                    FCB     'F', 'L', 'E', 'X'
+
+                      ;* FILL REMAINING SPACE WITH $00
+
+ C200 00                          FCB     $00
+ C201 00                          FCB     $00
+ C202 00                          FCB     $00
+ C203 00                          FCB     $00
+ C204 00                          FCB     $00
+ C205 00                          FCB     $00
+ C206 00                          FCB     $00
+ C207 00                          FCB     $00
+ C208 00                          FCB     $00
+ C209 00                          FCB     $00
+ C20A 00                          FCB     $00
+ C20B 00                          FCB     $00
+ C20C 00                          FCB     $00
+ C20D 00                          FCB     $00
+ C20E 00                          FCB     $00
+ C20F 00                          FCB     $00
+ C210 00                          FCB     $00
+ C211 00                          FCB     $00
+ C212 00                          FCB     $00
+ C213 00                          FCB     $00
+ C214 00                          FCB     $00
+ C215 00                          FCB     $00
+ C216 00                          FCB     $00
+ C217 00                          FCB     $00
+ C218 00                          FCB     $00
+ C219 00                          FCB     $00
+ C21A 00                          FCB     $00
+ C21B 00                          FCB     $00
+ C21C 00                          FCB     $00
+ C21D 00                          FCB     $00
+ C21E 00                          FCB     $00
+ C21F 00                          FCB     $00
+ C220 00                          FCB     $00
+ C221 00                          FCB     $00
+ C222 00                          FCB     $00
+ C223 00                          FCB     $00
+ C224 00                          FCB     $00
+ C225 00                          FCB     $00
+ C226 00                          FCB     $00
+ C227 00                          FCB     $00
+ C228 00                          FCB     $00
+ C229 00                          FCB     $00
+ C22A 00                          FCB     $00
+ C22B 00                          FCB     $00
+ C22C 00                          FCB     $00
+ C22D 00                          FCB     $00
+ C22E 00                          FCB     $00
+ C22F 00                          FCB     $00
+ C230 00                          FCB     $00
+ C231 00                          FCB     $00
+ C232 00                          FCB     $00
+ C233 00                          FCB     $00
+ C234 00                          FCB     $00
+ C235 00                          FCB     $00
+ C236 00                          FCB     $00
+ C237 00                          FCB     $00
+ C238 00                          FCB     $00
+ C239 00                          FCB     $00
+ C23A 00                          FCB     $00
+ C23B 00                          FCB     $00
+ C23C 00                          FCB     $00
+ C23D 00                          FCB     $00
+ C23E 00                          FCB     $00
+ C23F 00                          FCB     $00
+ C240 00                          FCB     $00
+ C241 00                          FCB     $00
+ C242 00                          FCB     $00
+ C243 00                          FCB     $00
+ C244 00                          FCB     $00
+ C245 00                          FCB     $00
+ C246 00                          FCB     $00
+ C247 00                          FCB     $00
+ C248 00                          FCB     $00
+ C249 00                          FCB     $00
+ C24A 00                          FCB     $00
+ C24B 00                          FCB     $00
+ C24C 00                          FCB     $00
+ C24D 00                          FCB     $00
+ C24E 00                          FCB     $00
+ C24F 00                          FCB     $00
+ C250 00                          FCB     $00
+ C251 00                          FCB     $00
+ C252 00                          FCB     $00
+ C253 00                          FCB     $00
+ C254 00                          FCB     $00
+ C255 00                          FCB     $00
+ C256 00                          FCB     $00
+ C257 00                          FCB     $00
+ C258 00                          FCB     $00
+ C259 00                          FCB     $00
+ C25A 00                          FCB     $00
+ C25B 00                          FCB     $00
+ C25C 00                          FCB     $00
+ C25D 00                          FCB     $00
+ C25E 00                          FCB     $00
+ C25F 00                          FCB     $00
+ C260 00                          FCB     $00
+ C261 00                          FCB     $00
+ C262 00                          FCB     $00
+ C263 00                          FCB     $00
+ C264 00                          FCB     $00
+ C265 00                          FCB     $00
+ C266 00                          FCB     $00
+ C267 00                          FCB     $00
+ C268 00                          FCB     $00
+ C269 00                          FCB     $00
+ C26A 00                          FCB     $00
+ C26B 00                          FCB     $00
+ C26C 00                          FCB     $00
+ C26D 00                          FCB     $00
+ C26E 00                          FCB     $00
+ C26F 00                          FCB     $00
+ C270 00                          FCB     $00
+ C271 00                          FCB     $00
+ C272 00                          FCB     $00
+ C273 00                          FCB     $00
+ C274 00                          FCB     $00
+ C275 00                          FCB     $00
+ C276 00                          FCB     $00
+ C277 00                          FCB     $00
+ C278 00                          FCB     $00
+ C279 00                          FCB     $00
+ C27A 00                          FCB     $00
+ C27B 00                          FCB     $00
+ C27C 00                          FCB     $00
+ C27D 00                          FCB     $00
+ C27E 00                          FCB     $00
+ C27F 00                          FCB     $00
+ C280 00                          FCB     $00
+ C281 00                          FCB     $00
+ C282 00                          FCB     $00
+ C283 00                          FCB     $00
+ C284 00                          FCB     $00
+ C285 00                          FCB     $00
+ C286 00                          FCB     $00
+ C287 00                          FCB     $00
+ C288 00                          FCB     $00
+ C289 00                          FCB     $00
+ C28A 00                          FCB     $00
+ C28B 00                          FCB     $00
+ C28C 00                          FCB     $00
+ C28D 00                          FCB     $00
+ C28E 00                          FCB     $00
+ C28F 00                          FCB     $00
+ C290 00                          FCB     $00
+ C291 00                          FCB     $00
+ C292 00                          FCB     $00
+ C293 00                          FCB     $00
+ C294 00                          FCB     $00
+ C295 00                          FCB     $00
+ C296 00                          FCB     $00
+ C297 00                          FCB     $00
+ C298 00                          FCB     $00
+ C299 00                          FCB     $00
+ C29A 00                          FCB     $00
+ C29B 00                          FCB     $00
+ C29C 00                          FCB     $00
+ C29D 00                          FCB     $00
+ C29E 00                          FCB     $00
+ C29F 00                          FCB     $00
+ C2A0 00                          FCB     $00
+ C2A1 00                          FCB     $00
+ C2A2 00                          FCB     $00
+ C2A3 00                          FCB     $00
+ C2A4 00                          FCB     $00
+ C2A5 00                          FCB     $00
+ C2A6 00                          FCB     $00
+ C2A7 00                          FCB     $00
+ C2A8 00                          FCB     $00
+ C2A9 00                          FCB     $00
+ C2AA 00                          FCB     $00
+ C2AB 00                          FCB     $00
+ C2AC 00                          FCB     $00
+ C2AD 00                          FCB     $00
+ C2AE 00                          FCB     $00
+ C2AF 00                          FCB     $00
+ C2B0 00                          FCB     $00
+ C2B1 00                          FCB     $00
+ C2B2 00                          FCB     $00
+ C2B3 00                          FCB     $00
+ C2B4 00                          FCB     $00
+ C2B5 00                          FCB     $00
+ C2B6 00                          FCB     $00
+ C2B7 00                          FCB     $00
+ C2B8 00                          FCB     $00
+ C2B9 00                          FCB     $00
+ C2BA 00                          FCB     $00
+ C2BB 00                          FCB     $00
+ C2BC 00                          FCB     $00
+ C2BD 00                          FCB     $00
+ C2BE 00                          FCB     $00
+ C2BF 00                          FCB     $00
+ C2C0 00                          FCB     $00
+ C2C1 00                          FCB     $00
+ C2C2 00                          FCB     $00
+ C2C3 00                          FCB     $00
+ C2C4 00                          FCB     $00
+ C2C5 00                          FCB     $00
+ C2C6 00                          FCB     $00
+ C2C7 00                          FCB     $00
+ C2C8 00                          FCB     $00
+ C2C9 00                          FCB     $00
+ C2CA 00                          FCB     $00
+ C2CB 00                          FCB     $00
+ C2CC 00                          FCB     $00
+ C2CD 00                          FCB     $00
+ C2CE 00                          FCB     $00
+ C2CF 00                          FCB     $00
+ C2D0 00                          FCB     $00
+ C2D1 00                          FCB     $00
+ C2D2 00                          FCB     $00
+ C2D3 00                          FCB     $00
+ C2D4 00                          FCB     $00
+ C2D5 00                          FCB     $00
+ C2D6 00                          FCB     $00
+ C2D7 00                          FCB     $00
+ C2D8 00                          FCB     $00
+ C2D9 00                          FCB     $00
+ C2DA 00                          FCB     $00
+ C2DB 00                          FCB     $00
+ C2DC 00                          FCB     $00
+ C2DD 00                          FCB     $00
+ C2DE 00                          FCB     $00
+ C2DF 00                          FCB     $00
+ C2E0 00                          FCB     $00
+ C2E1 00                          FCB     $00
+ C2E2 00                          FCB     $00
+ C2E3 00                          FCB     $00
+ C2E4 00                          FCB     $00
+ C2E5 00                          FCB     $00
+ C2E6 00                          FCB     $00
+ C2E7 00                          FCB     $00
+ C2E8 00                          FCB     $00
+ C2E9 00                          FCB     $00
+ C2EA 00                          FCB     $00
+ C2EB 00                          FCB     $00
+ C2EC 00                          FCB     $00
+ C2ED 00                          FCB     $00
+ C2EE 00                          FCB     $00
+ C2EF 00                          FCB     $00
+ C2F0 00                          FCB     $00
+ C2F1 00                          FCB     $00
+ C2F2 00                          FCB     $00
+ C2F3 00                          FCB     $00
+ C2F4 00                          FCB     $00
+ C2F5 00                          FCB     $00
+ C2F6 00                          FCB     $00
+ C2F7 00                          FCB     $00
+ C2F8 00                          FCB     $00
+ C2F9 00                          FCB     $00
+ C2FA 00                          FCB     $00
+ C2FB 00                          FCB     $00
+ C2FC 00                          FCB     $00
+ C2FD 00                          FCB     $00
+ C2FE 00                          FCB     $00
+ C2FF 00                          FCB     $00
+
+ C100                             END     CMDADR
+
+SYMBOL TABLE
+    ASNPRM 00 CC0B      CFOK 00 DEB0     CFTRK 00 DEB6    CMDADR 02 C100
+    CMDSTA 02 C10C    FLXTRK 02 C105     GETCH 02 C15D    GETCH4 02 C174
+        GO 02 C177     LADR1 02 C109     LOAD1 02 C126     LOAD2 02 C13C
+     LOAD3 02 C150     MLOAD 02 C186    RDBOOT 00 E82A  ROMLATCH 00 EEB0
+    SCTBUF 00 C300     STACK 00 C080  STRUPDSK 00 C843      TADR 02 C107
+20 SYMBOLS
+
+0 error(s), 0 warning(s)
