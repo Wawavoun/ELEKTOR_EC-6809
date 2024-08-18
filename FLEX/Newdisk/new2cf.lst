@@ -1,0 +1,1075 @@
+                      ;*********************************************************
+                      ;*                                                       *
+                      ;* COMPACT FLASH FORMAT UTILITY                          *
+                      ;*                                                       *
+                      ;* WRITED FOR ELEKTOR EC-6809 BY PH. ROEHR 08/2024       *
+                      ;*                                                       *
+                      ;* THIS VERSION IS FOR TWO CF LOCATED AT $EE80 & $EEF0   *
+                      ;*                                                       *
+                      ;*********************************************************
+
+ 0000                 MINS0   EQU     $00
+ 0001                 MINS1   EQU     $01
+ 00FF                 SECSZ   EQU     $FF         ; 256 BYTES/SECTORS FOR FLEX (0->FF)
+ 0002                 CFDSKN1 EQU     02          ; COMPACT FLASH 1 $EE80 FLEX DISK NUMBER
+ 0003                 CFDSKN2 EQU     03          ; COMPACT FLASH 2 $EEF0 FLEX DISK NUMBER
+ 0800                 SECBUF  EQU     $800        ; BUFFER FOR PREPARING SECTOR IN MEMORY
+                      ; FLEX SECTOR IS 256 BYTES BUT SECTOR IS 512 BYTES ON CF
+ 0A00                 ENDBUF  EQU     SECBUF+(SECSZ+1)*2
+
+                      ; STANDARD PRE-NAMED LABEL EQUATES
+ CC0E                 SYSMTH  EQU     $CC0E       ; SYSTEM DATE MONTH
+ CC0F                 SYSDAY  EQU     $CC0F       ; DAY
+ CC10                 SYSYR   EQU     $CC10       ; YEAR
+ CD03                 WARMS   EQU     $CD03
+ CD15                 GETCHR  EQU     $CD15
+ CD18                 PUTCHR  EQU     $CD18
+ CD1B                 INBUFF  EQU     $CD1B
+ CD1E                 PSTRNG  EQU     $CD1E
+ CD24                 PCRLF   EQU     $CD24
+ CD2D                 GETFIL  EQU     $CD2D
+ CD39                 OUTDEC  EQU     $CD39
+ CD3C                 OUTHEX  EQU     $CD3C
+ CD42                 GETHEX  EQU     $CD42
+ CD45                 OUTADR  EQU     $CD45
+ CD48                 INDEC   EQU     $CD48
+ CC0B                 ASNPRM  EQU     $CC0B       ; ASN PARAMETERS
+
+                      ; ASCII CODE EQUATES
+ 0004                 EOT     EQU     $04
+ 0020                 SPC     EQU     $20
+
+                      ; FLEX CF PARAMETERS
+ DEBA                 CF1MTRK  EQU    $DEBA
+ DEBC                 CF2MTRK  EQU    $DEBC
+
+                      ; CF REGS
+ EE80                 CF1ADDRESS  EQU     $EE80
+ EEF0                 CF2ADDRESS  EQU     $EEF0
+ 0000                 CFDATA      EQU     $00     ; DATA PORT
+ 0001                 CFERROR     EQU     $01     ; ERROR CODE (READ)
+ 0001                 CFFEATURE   EQU     $01     ; FEATURE SET (WRITE)
+ 0002                 CFSECCNT    EQU     $02     ; NUMBER OF SECTORS TO TRANSFER
+ 0003                 CFLBA0      EQU     $03     ; SECTOR ADDRESS LBA 0 [0:7]
+ 0004                 CFLBA1      EQU     $04     ; SECTOR ADDRESS LBA 1 [8:15]
+ 0005                 CFLBA2      EQU     $05     ; SECTOR ADDRESS LBA 2 [16:23]
+ 0006                 CFLBA3      EQU     $06     ; SECTOR ADDRESS LBA 3 [24:27 (LSB)]
+ 0007                 CFSTATUS    EQU     $07     ; STATUS (READ)
+ 0007                 CFCOMMAND   EQU     $07     ; COMMAND SET (WRITE)
+
+                              ORG     $0100
+
+ 0100 00              FMAXS       FCB     $00      ; MSB
+ 0101 FF              MAXS        FCB     $FF      ; LSB 255 SECTOR ON TRACK 0 (0->FF BUT SECTOR 2 NOT WRITED)
+                                                   ; 255 SECTOR ON TRACK 1 TO FF (1->FF)
+ 0102 00              FMAXT       FCB     $00      ; MSB
+ 0103 FF              MAXT        FCB     $FF      ; LSB 256 TRACKS (0-FF)
+ 0104                 TRACK       RMB     1
+ 0105                 SECTOR      RMB     1
+ 0106                 SEC16       RMB     2
+ 0108                 FKFCB       RMB     4
+ 010C 00000000000000  VOLNAM      FCB     0,0,0,0,0,0,0,0,0,0,0
+ 0113 00000000
+ 0117 0000            VOLNUM      FCB     0,0
+ 0119 E0              LBA3        FCB     $E0      ; B7=1 / B6=1 FOR LBA / B5=1 / B4=0 MASTER / B3->B0 LBA27 TO LBA24
+ 011A 00              LBA2        FCB     $00      ; LBA23 TO LBA 16
+ 011B 00              LBA1        FCB     $00      ; LBA15 TO LBA8
+ 011C 00              LBA0        FCB     $00      ; LBA7 TO LBA0
+ 011D                 MAXLBA      RMB     2
+ 011F                 CFADDRES    RMB     2
+ 0121                 CFSTATUL    RMB     2
+
+                              ORG     $1000
+
+ 1000 200C            NEWCF   BRA     FORM1       ; BEGIN
+ 1002 01              VN      FCB     1           ; VERSION
+
+ 1003 BDCD1E          OUTIN   JSR     PSTRNG      ; DISPLAY STRING
+ 1006 BDCD15          OUTIN2  JSR     GETCHR      ; GET RESPONSE
+ 1009 845F                    ANDA    #$5F        ; UPPER CASE
+ 100B 8159                    CMPA    #'Y'        ; COMPARE TO Y SO Z IS SET IF YES
+ 100D 39                      RTS
+
+                      ; PROGRAM START
+ 100E BDCD24          FORM1   JSR     PCRLF
+ 1011 BDCD42                  JSR     GETHEX      ; GET DRIVE NUMBER FROM COMMAND LINE
+ 1014 102500E9                LBCS    EXIT        ; EXIT ON ERROR
+ 1018 1F10                    TFR     X,D
+ 101A 7DDEB0                  TST     CFOK        ; IF CFOK=0 NO CF ON THE SYSTEM
+ 101D 102700E0                LBEQ    EXIT        ; THEN EXIT
+ 1021 10830002                CMPD    #CFDSKN1    ; ENSURE COMPACT FLASH DISK 2 OR 3 ASKED
+ 1025 2709                    BEQ     CONTIN0     ; CONTINUE IF DISK 3
+ 1027 10830003                CMPD    #CFDSKN2     
+ 102B 2703                    BEQ     CONTIN0     ; CONTINUE IF DISK 2
+ 102D 1600D1                  LBRA    EXIT        ; EXIT IF DISK ASKED IS NOT A CF
+ 1030 F1CC0B          CONTIN0 CMPB    ASNPRM      ; ENSURE COMPACT FLASH ASKED IS NOT SYSTEM DISK
+ 1033 2606                    BNE     CONTIN      ; COMPARE ASN-SYSTEM TO CF DISK NUMBER
+ 1035 8E130B                  LDX     #MSGCFS     ; IF YES DISPLAY MSG AND EXIT
+ 1038 7E1104                  JMP     EXIT2
+ 103B BDCD24          CONTIN  JSR     PCRLF
+ 103E C102                    CMPB    #CFDSKN1    ; IS CF 1 (FLEX DISK 2) ASKED ?
+ 1040 2605                    BNE     CONTIN2     ; NO - GO TO SET CF 2 ADDRESS  
+ 1042 8EEE80                  LDX     #CF1ADDRESS ; YES - LOAD CF 1 ADDRESS 
+ 1045 2003                    BRA     CONTIN3     
+ 1047 8EEEF0          CONTIN2 LDX     #CF2ADDRESS ; LOAD CF 2 ADDRESS
+ 104A BF011F          CONTIN3 STX     CFADDRES    ; STORE
+ 104D 8607                    LDA     #CFSTATUS   ; COMPUTE CF STATUS REGISTER ADDRESS (16 BITS)
+ 104F 3086                    LEAX    A,X
+ 1051 BF0121                  STX     CFSTATUL    ; STORE        
+ 1054 BD147B                  JSR     INITCF      ; INIT COMPACT FLASH
+ 1057 2706                    BEQ     CONTIN1     ; GO TO FORMAT IF OK (Z SET)
+ 1059 8E133C                  LDX     #CFINIER    ; ERROR AFTER CF INIT - DISPLAY
+ 105C 7E1104                  JMP     EXIT2       ; AND EXIT
+ 105F 8E12CC          CONTIN1 LDX     #CFINIOK    ; DISPLAY MSG CF INIT OK
+ 1062 BDCD1E                  JSR     PSTRNG
+ 1065 BD14F9                  JSR     READCF      ; READ CF PARAMETERS
+ 1068 8E12E7                  LDX     #MSGLBA     ; DISPLAY MSG PARAM OK
+ 106B BDCD1E                  JSR     PSTRNG
+ 106E 8E0800                  LDX     #SECBUF
+ 1071 30887B                  LEAX    123,X       ; GET MAX LBA IN BUFFER (MSW H)
+ 1074 BDCD3C                  JSR     OUTHEX      ; DISPLAY IT
+ 1077 301F                    LEAX    -1,X        ; GET MAX LBA IN BUFFER (MSW L)
+ 1079 BDCD3C                  JSR     OUTHEX      ; DISPLAY IT
+ 107C 301F                    LEAX    -1,X        ; GET MAX LBA IN BUFFER (LSW H)
+ 107E BDCD3C                  JSR     OUTHEX      ; DISPLAY IT
+ 1081 301F                    LEAX    -1,X        ; GET MAX LBA IN BUFFER (LSW L)
+ 1083 BDCD3C                  JSR     OUTHEX      ; DISPLAY IT
+ 1086 BDCD24                  JSR     PCRLF
+ 1089 8E12BC                  LDX     #SURES      ; ASK IF SURE
+ 108C 17FF74                  LBSR    OUTIN
+ 108F 1026006E                LBNE    EXIT        ; EXIT IF NOT
+ 1093 8E135E                  LDX     #SCRDS      ; ASK IF SCRATCH DISK SURE
+ 1096 BDCD1E                  JSR     PSTRNG
+ 1099 17FF6A                  LBSR    OUTIN2      ; GET RESPONSE
+ 109C 10260061                LBNE    EXIT        ; EXIT IF SCRATCH NOT SURE
+ 10A0 BDCD24          FORM20  JSR     PCRLF
+ 10A3 8E1438                  LDX     #SECNUM     ; ASK SECTOR/TRACK NUMBER
+ 10A6 BDCD1E                  JSR     PSTRNG
+ 10A9 BDCD1B                  JSR     INBUFF
+ 10AC BDCD48                  JSR     INDEC
+ 10AF 25EF                    BCS     FORM20
+ 10B1 8C0013                  CMPX    #$0013      ; CHECK IF >= 20
+ 10B4 2FEA                    BLE     FORM20
+ 10B6 8C00FF                  CMPX    #$00FF      ; CHECK IF <= 255
+ 10B9 22E5                    BHI     FORM20
+ 10BB BF0100                  STX     >FMAXS
+ 10BE 8E145F          FORM30  LDX     #TRKNUM     ; ASK TRACK NUMBER
+ 10C1 BDCD1E                  JSR     PSTRNG
+ 10C4 BDCD1B                  JSR     INBUFF
+ 10C7 BDCD48                  JSR     INDEC
+ 10CA 25F2                    BCS     FORM30
+ 10CC 8C0027                  CMPX    #$0027      ; CHECK IF >= 40
+ 10CF 2FED                    BLE     FORM30
+ 10D1 8C00FF                  CMPX    #$00FF      ; CHECK IF <= 255
+ 10D4 22E8                    BHI     FORM30
+ 10D6 301F                    LEAX    -1,X        ; SUBSTRACT 1 BECAUSE TRACK ARE NUMBERED 0 TO MAXT
+ 10D8 BF0102                  STX     >FMAXT
+ 10DB 8E13E8          FORM40  LDX     #MNSTR      ; ASK VOLUME NAME
+ 10DE BDCD1E                  JSR     PSTRNG
+ 10E1 BDCD1B                  JSR     INBUFF
+ 10E4 8E0108                  LDX     #FKFCB
+ 10E7 BDCD2D                  JSR     GETFIL
+ 10EA 8E13F7          FORM27  LDX     #NUMSTR     ; ASK VOLUME NUMBER
+ 10ED BDCD1E                  JSR     PSTRNG
+ 10F0 BDCD1B                  JSR     INBUFF
+ 10F3 BDCD48                  JSR     INDEC
+ 10F6 25F2                    BCS     FORM27
+ 10F8 BF0117                  STX     >VOLNUM
+ 10FB BDCD24                  JSR     PCRLF
+ 10FE 7E110D                  JMP     FORMAT      ; GO TO FORMAT IF OK
+
+                      ; EXIT ROUTINES
+ 1101 8E1377          EXIT    LDX     #ABORTS
+ 1104 BDCD1E          EXIT2   JSR     PSTRNG
+ 1107 BDCD24                  JSR     PCRLF
+ 110A 7ECD03                  JMP     WARMS       ; EXIT
+
+                      ; MAIN FORMATTING LOOP
+ 110D 8E0800          FORMAT  LDX     #SECBUF     ; CLEAR BUFFER
+ 1110 6F80            CLRBUF  CLR     ,X+
+ 1112 8C0A00                  CMPX    #ENDBUF     ; FLEX SECTOR IS 256 BYTES BUT SECTOR IS 512 BYTES ON CF
+ 1115 26F9                    BNE     CLRBUF
+ 1117 8E1408                  LDX     #INITRK     ; DISPLAY WRITE TR/SECTOR MESSAGE
+ 111A BDCD1E                  JSR     PSTRNG
+ 111D 7F0104                  CLR     >TRACK      ; SET TRACK 0
+ 1120 8600                    LDA     #MINS0      ; PREPARE FOR TRACK 0
+ 1122 B70105          FORM    STA     >SECTOR
+ 1125 8102            FORM3   CMPA    #02         ; IF SECTOR 2 CHECK IF TRACK 0
+ 1127 2605                    BNE     FORM4
+ 1129 B60104                  LDA     >TRACK
+ 112C 2709                    BEQ     FORM5       ; IF S2 TR0 NO SECTOR WRITED
+ 112E BD115F          FORM4   JSR     SECHD       ; GO PREPARE SECTOR IN MEMORY
+ 1131 BD1521                  JSR     COMPLBA     ; COMPUTE LBA FROM SECTOR AND TRACK
+ 1134 BD11A1                  JSR     WTSECT      ; COPY MEMORY BUFFER TO CF
+ 1137 B60105          FORM5   LDA     >SECTOR
+ 113A B10101                  CMPA    MAXS        ; COMPARE TO MAXS
+ 113D 2708                    BEQ     FORM50
+ 113F 7C0105                  INC     >SECTOR
+ 1142 B60105                  LDA     >SECTOR
+ 1145 20DE                    BRA     FORM3
+ 1147 B60104          FORM50  LDA     >TRACK
+ 114A B10103                  CMPA    MAXT        ; COMPARE TRACK TO MAXT
+ 114D 2707                    BEQ     ENDFORM     ; END IF TRACK MAXT WRITED
+ 114F 7C0104                  INC     >TRACK
+ 1152 8601                    LDA     #MINS1      ; PREPARE FOR TRACK 1 AND NEXT
+ 1154 20CC                    BRA     FORM        ; REPEAT FOR NEXT TR
+ 1156 FC011B          ENDFORM LDD     >LBA1       ; STORE MAX LBA
+ 1159 FD011D                  STD     >MAXLBA
+ 115C 7E11E5                  JMP     SETSIR      ; END OF FORMATTING LOOP - GO TO SETUP SIR
+
+                      ; SETUP SECTOR IN MEMORY
+ 115F 8E0800          SECHD   LDX     #SECBUF     ; POINT TO BUFFER
+ 1162 F60105                  LDB     >SECTOR
+ 1165 F10101                  CMPB    >MAXS       ; CHECK IF SECTOR IS LAST FROM TRACK
+ 1168 261D                    BNE     NOLASTS     ; IF NOT LAST SECTOR CONTINUE
+ 116A F60104                  LDB     >TRACK      ; IF LAST SECTOR FROM TRACK
+ 116D 2705                    BEQ     SET0000     ;   CHECK IF TRACK 0
+ 116F F10103                  CMPB    >MAXT       ;   CHECK IF LAST TRACK
+ 1172 2607                    BNE     NOLASTT
+ 1174 5F              SET0000 CLRB                ; IN LAST SECTOR FROM TRACK 0 OR LAST TRACK PUT 00-00
+ 1175 E780                    STB     ,X+
+ 1177 E784                    STB     ,X
+ 1179 2025                    BRA     SECHDE
+ 117B F60104          NOLASTT LDB     >TRACK      ; IN LAST SECTOR FROM OTHER TRACKS PUT TR+1-01
+ 117E 5C                      INCB
+ 117F E780                    STB     ,X+
+ 1181 C601                    LDB     #01
+ 1183 E784                    STB     ,X
+ 1185 2019                    BRA     SECHDE
+ 1187 F60104          NOLASTS LDB     >TRACK
+ 118A E780                    STB     ,X+
+ 118C C100                    CMPB    #0          ; CHECK IF TRACK 0
+ 118E 260A                    BNE     NOTTR0
+ 1190 F60105                  LDB     >SECTOR
+ 1193 C101                    CMPB    #1          ; IF TRACK 0 CHECK IF SECTOR 1
+ 1195 2603                    BNE     NOTTR0
+ 1197 5C                      INCB                ; IN CASE OF TR 0 SEC 1 INCREASE SECTOR POINTER ONE MORE
+ 1198 2003                    BRA     GCAS
+ 119A F60105          NOTTR0  LDB     >SECTOR
+ 119D 5C              GCAS    INCB                ; IN GENERAL CASE ALWAYS POINT TO NEXT SECTOR
+ 119E E784                    STB     ,X
+ 11A0 39              SECHDE  RTS                 ; REMAINING BYTES OF BUFFER ALREADY SET TO 0
+
+                      ; WRITE SECTOR TO CF
+ 11A1 8608            WTSECT  LDA     #$08        ; LOAD BACKSPACE
+ 11A3 BDCD18                  JSR     PUTCHR
+ 11A6 BDCD18                  JSR     PUTCHR
+ 11A9 BDCD18                  JSR     PUTCHR
+ 11AC BDCD18                  JSR     PUTCHR
+ 11AF BDCD18                  JSR     PUTCHR
+ 11B2 BDCD18                  JSR     PUTCHR
+ 11B5 BDCD18                  JSR     PUTCHR
+ 11B8 BDCD18                  JSR     PUTCHR
+ 11BB BDCD18                  JSR     PUTCHR
+ 11BE BDCD18                  JSR     PUTCHR
+ 11C1 BDCD18                  JSR     PUTCHR
+ 11C4 BDCD18                  JSR     PUTCHR
+ 11C7 BDCD18                  JSR     PUTCHR
+ 11CA 8E0104                  LDX     #TRACK
+ 11CD BDCD45                  JSR     OUTADR      ; DISPLAY TRACK AND SECTOR
+ 11D0 8620                    LDA     #SPC
+ 11D2 BDCD18                  JSR     PUTCHR      ; DISPLAY SPC
+ 11D5 8E0119                  LDX     #LBA3
+ 11D8 BDCD45                  JSR     OUTADR      ; DISPLAY LBA3 AND LBA2
+ 11DB 8E011B                  LDX     #LBA1
+ 11DE BDCD45                  JSR     OUTADR      ; DISPLAY LBA1 AND LBA0
+ 11E1 BD14AA                  JSR     WRITECF     ; WRITE SECTOR TO CF
+ 11E4 39                      RTS
+
+                      ; SETUP THE SIR IN BUFFER THEN WRITE IT INTO TR 0 / SEC 3
+ 11E5 8E0800          SETSIR  LDX     #SECBUF     ; POINT TO BUFFER
+ 11E8 6F80            CLRL    CLR     ,X+         ; CLEAR 16 FIRST BYTES
+ 11EA 8C0810                  CMPX    #SECBUF+16
+ 11ED 26F9                    BNE     CLRL
+ 11EF 108E010C                LDY     #VOLNAM     ; TRANSFERT 11 BYTES AS VOLUME NAME
+ 11F3 E6A0            NAML    LDB     ,Y+
+ 11F5 E780                    STB     ,X+         ; WRITE TO BUFFER
+ 11F7 108C0117                CMPY    #VOLNAM+11
+ 11FB 26F6                    BNE     NAML
+ 11FD ECA4                    LDD     ,Y          ; LOAD TWO BYTES AS VOLUME NUMBER
+ 11FF ED81                    STD     ,X++        ; WRITE TO BUFFER
+ 1201 C601                    LDB     #01         ; SET 01 FOR FIRST FREE TRACK AND SECTOR
+ 1203 E780                    STB     ,X+
+ 1205 E780                    STB     ,X+
+ 1207 F60103                  LDB     >MAXT       ; SET MAX TRACK AS LAST FREE TRACK
+ 120A E780                    STB     ,X+
+ 120C F60101                  LDB     >MAXS       ; SET MAX SECTOR AS LAST FREE SECTOR
+ 120F E780                    STB     ,X+
+ 1211 FC011D                  LDD     MAXLBA      ; LOAD MAX SECTORS ON CF
+ 1214 B30100                  SUBD    FMAXS       ; SUBSTRACT TRACK 0 SECTORS
+ 1217 C30001                  INCD
+ 121A ED81                    STD     ,X++        ; WRITE HOW MANY FREE SECTORS ON DISK
+ 121C F6CC0E                  LDB     >SYSMTH     ; SET MONTH
+ 121F E780                    STB    ,X+
+ 1221 F6CC0F                  LDB     >SYSDAY     ; SET DAY
+ 1224 E780                    STB    ,X+
+ 1226 F6CC10                  LDB     >SYSYR      ; SET YEAR
+ 1229 E780                    STB     ,X+
+ 122B F60103                  LDB     >MAXT       ; SET MAX TRACK
+ 122E E780                    STB     ,X+
+ 1230 F60101                  LDB     >MAXS       ; SET MAX SECTOR
+ 1233 E784                    STB     ,X
+ 1235 8602                    LDA     #2          ; SIR LAY IN TR0/SEC3 WHICH IS LBA E0 00 00 02
+ 1237 B7011C                  STA     >LBA0
+ 123A 7F011B                  CLR     >LBA1
+ 123D BD14AA                  JSR     WRITECF     ; WRITE SIR BUFFER TO CF
+ 1240 8E1388                  LDX     #MSGSIR     ; DISPLAY SIR MESSAGE
+ 1243 BDCD1E                  JSR     PSTRNG
+ 1246 7E1249                  JMP     SETDIR      ; GO TO DIR SETUP
+
+                      ; DIR SETUP (NOT REALLY REQUIRED, FOR CLARITY ONLY)
+                      ; HERE WE HAVE JUST TO PUT 00-00 INTO LAST SECTOR
+                      ; OF TRACK 0 TO END THE DIRECTORY SECTORS CHAIN
+ 1249 8E0800          SETDIR  LDX     #SECBUF      ; CLEAR BUFFER
+ 124C 6F80            CLRDIR  CLR     ,X+
+ 124E 8C0A00                  CMPX    #ENDBUF
+ 1251 26F9                    BNE     CLRDIR
+ 1253 7F0104                  CLR     >TRACK      ; SET TRACK TO 0
+ 1256 B60101                  LDA     >MAXS
+ 1259 B70105                  STA     >SECTOR     ; SET SECTOR TO MAX
+ 125C BD1521                  JSR     COMPLBA     ; COMPUTE LBA
+ 125F BD14AA                  JSR     WRITECF     ; WRITE SECTOR
+ 1262 8E139D                  LDX     #MSGDIR     ; DISPLAY DIR MESSAGE
+ 1265 BDCD1E                  JSR     PSTRNG
+
+                      ;* SAVE BOOT IN TRACK 0 SECTOR 1 (LBA 0000)
+ 1268 108EC100        DOBOOT  LDY     #CMDADR     ; COPY BOOTLOADER INTO SECTOR BUFFER
+ 126C 8E0800                  LDX     #SECBUF
+ 126F ECA1            BOOTL   LDD     ,Y++
+ 1271 ED81                    STD     ,X++
+ 1273 108CC300                CMPY    #CMDADR+512
+ 1277 26F6                    BNE     BOOTL
+ 1279 CC0000                  LDD     #$0000
+ 127C FD011B                  STD     >LBA1       ; SET LBA 0000
+ 127F BD14AA                  JSR     WRITECF     ; WRITE THE SECTOR
+ 1282 8E13B2                  LDX     #MSGBOOT    ; DISPLAY BOOT MESSAGE
+ 1285 BDCD1E                  JSR     PSTRNG
+
+                      ; ALL DONE
+ 1288 BDCD24                  JSR     PCRLF
+ 128B 8E13D7                  LDX     #SECST      ; DISPLAY SECTOR NUMBER MESSAGE
+ 128E BDCD1E                  JSR     PSTRNG
+ 1291 BE011D                  LDX     >MAXLBA
+ 1294 3001                    LEAX    1,X         ; ADD ONE DUE TO TR 0 / SEC 0
+ 1296 BF011D                  STX     >MAXLBA
+ 1299 8E011D                  LDX     #MAXLBA
+ 129C BDCD39                  JSR     OUTDEC      ; DISPLAY NUMBER OF SECTORS
+                              
+                      ; WE MUST UPDATE FLEX CF TABLE 
+ 129F B60103                  LDA     MAXT
+ 12A2 F60101                  LDB     MAXS
+ 12A5 BE011F                  LDX     CFADDRES
+ 12A8 8CEE80                  CMPX    #CF1ADDRESS ; CF 1 ?
+ 12AB 2606                    BNE     CF2         ; NO - GO TO CF 2
+ 12AD FDDEBA                  STD     CF1MTRK     ; STORE PARAMETERS
+ 12B0 7E1104                  JMP     EXIT2       ; NOW EXIT
+ 12B3 FDDEBC          CF2     STD     CF2MTRK     ; IF NOT CF 1 THEN CF 2 - STORE PARAMETERS
+ 12B6 8E13C6                  LDX     #CMPLTE     ; SET MESSAGE FORMAT COMPLETE
+ 12B9 7E1104                  JMP     EXIT2       ; NOW EXIT
+
+                      ; DISPLAYED MESSAGES
+
+ 12BC 41524520594F55  SURES   FCC     "ARE YOU SURE ? "
+ 12C3 2053555245203F
+ 12CA 20
+ 12CB 04                      FCB     EOT
+ 12CC 434F4D50414354  CFINIOK FCC     "COMPACT FLASH INITIALIZED."
+ 12D3 20464C41534820
+ 12DA 494E495449414C
+ 12E1 495A45442E
+ 12E6 04                      FCB     EOT
+ 12E7 544F54414C204C  MSGLBA  FCC     "TOTAL LBA ON COMPACT FLASH (HEX) : "
+ 12EE 4241204F4E2043
+ 12F5 4F4D5041435420
+ 12FC 464C4153482028
+ 1303 48455829203A20
+ 130A 04                      FCB     EOT
+ 130B 434F4D50414354  MSGCFS  FCC     "COMPACT FLASH SET AS SYSTEM DISK - CAN'T FORMAT."
+ 1312 20464C41534820
+ 1319 53455420415320
+ 1320 53595354454D20
+ 1327 4449534B202D20
+ 132E 43414E27542046
+ 1335 4F524D41542E
+ 133B 04                      FCB     EOT
+ 133C 4552524F522049  CFINIER FCC     "ERROR INITIALIZING COMPACT FLASH."
+ 1343 4E495449414C49
+ 134A 5A494E4720434F
+ 1351 4D504143542046
+ 1358 4C4153482E
+ 135D 04                      FCB     EOT
+ 135E 53435241544348  SCRDS   FCC     "SCRATCH COMPACT FLASH ? "
+ 1365 20434F4D504143
+ 136C 5420464C415348
+ 1373 203F20
+ 1376 04                      FCB     EOT
+ 1377 464F524D415420  ABORTS  FCC     "FORMAT ABORTED !"
+ 137E 41424F52544544
+ 1385 2021
+ 1387 04                      FCB     EOT
+ 1388 53495220425549  MSGSIR  FCC     "SIR BUILD AND WRITE."
+ 138F 4C4420414E4420
+ 1396 57524954452E
+ 139C 04                      FCB     EOT
+ 139D 44495220425549  MSGDIR  FCC     "DIR BUILD AND WRITE."
+ 13A4 4C4420414E4420
+ 13AB 57524954452E
+ 13B1 04                      FCB     EOT
+ 13B2 424F4F54205345  MSGBOOT FCC     "BOOT SECTOR(S) SET."
+ 13B9 43544F52285329
+ 13C0 205345542E
+ 13C5 04                      FCB     EOT
+ 13C6 464F524D415420  CMPLTE  FCC     "FORMAT COMPLETE."
+ 13CD 434F4D504C4554
+ 13D4 452E
+ 13D6 04                      FCB     EOT
+ 13D7 544F54414C2053  SECST   FCC     "TOTAL SECTORS = "
+ 13DE 4543544F525320
+ 13E5 3D20
+ 13E7 04                      FCB     EOT
+ 13E8 564F4C554D4520  MNSTR   FCC     "VOLUME NAME ? "
+ 13EF 4E414D45203F20
+ 13F6 04                      FCB     EOT
+ 13F7 564F4C554D4520  NUMSTR  FCC     "VOLUME NUMBER ? "
+ 13FE 4E554D42455220
+ 1405 3F20
+ 1407 04                      FCB     EOT
+ 1408 57524954452054  INITRK  FCC     "WRITE TRACK/SECTOR + LBA3-2-1-0 :              "
+ 140F 5241434B2F5345
+ 1416 43544F52202B20
+ 141D 4C4241332D322D
+ 1424 312D30203A2020
+ 142B 20202020202020
+ 1432 2020202020
+ 1437 04                      FCB     EOT
+ 1438 484F57204D414E  SECNUM  FCC     "HOW MANY SECTORS PER TRACK (20-255) ? "
+ 143F 5920534543544F
+ 1446 52532050455220
+ 144D 545241434B2028
+ 1454 32302D32353529
+ 145B 203F20
+ 145E 04                      FCB     EOT
+ 145F 484F57204D414E  TRKNUM  FCC     "HOW MANY TRACKS (40-255) ? "
+ 1466 5920545241434B
+ 146D 53202834302D32
+ 1474 353529203F20
+ 147A 04                      FCB     EOT
+
+                      ; INITIALISE THE CF CARD
+ 147B BE011F          INITCF  LDX     CFADDRES
+ 147E BD154E                  JSR     CMDWAIT
+ 1481 C604                    LDB     #$04            ; RESET THE CF CARD
+ 1483 E79F0121                STB     [CFSTATUL]
+ 1487 BD154E                  JSR     CMDWAIT
+ 148A C6E0                    LDB     #$E0            ; CLEAR LBA3, SET MASTER & LBA MODE
+ 148C E706                    STB     CFLBA3, X
+ 148E BD154E                  JSR     CMDWAIT
+ 1491 C601                    LDB     #$01            ; SET 8-BIT BUS-WIDTH
+ 1493 E701                    STB     CFFEATURE, X
+ 1495 BD154E                  JSR     CMDWAIT
+ 1498 C601                    LDB     #$01            ; READ ONLY ONE SECTOR AT A TIME.
+ 149A E702                    STB     CFSECCNT, X
+ 149C BD154E                  JSR     CMDWAIT
+ 149F C6EF                    LDB     #$EF            ; ENABLE FEATURES
+ 14A1 E707                    STB     CFCOMMAND, X
+ 14A3 BD154E                  JSR     CMDWAIT
+ 14A6 BD1562                  JSR     CFERR
+ 14A9 39                      RTS
+
+                      ; WRITE A BLOCK OF DATA FROM THE MEMORY TO CF CARD
+ 14AA 3436            WRITECF PSHS    Y,X,B,A
+ 14AC 3401                    PSHS    CC
+ 14AE 1A50                    ORCC    #$50            ; SET INTERRUPT BITS - DISABLE IRQ FIRQ
+ 14B0 BD154E                  JSR     CMDWAIT
+ 14B3 BE011F                  LDX     CFADDRES
+ 14B6 F6011C                  LDB     >LBA0           ; LOAD THE LBA ADDRESSES WITH THE CURRENT
+ 14B9 E703                    STB     CFLBA0, X       ; SETTINGS BEFORE ISSUING THE WRITE COMMAND.
+ 14BB BD154E                  JSR     CMDWAIT
+ 14BE F6011B                  LDB     >LBA1
+ 14C1 E704                    STB     CFLBA1, X
+ 14C3 BD154E                  JSR     CMDWAIT
+ 14C6 F6011A                  LDB     >LBA2
+ 14C9 E705                    STB     CFLBA2, X
+ 14CB BD154E                  JSR     CMDWAIT
+ 14CE F60119                  LDB     >LBA3
+ 14D1 E706                    STB     CFLBA3, X
+ 14D3 BD154E                  JSR     CMDWAIT
+ 14D6 C601                    LDB     #$01
+ 14D8 E702                    STB     CFSECCNT, X
+ 14DA BD154E                  JSR     CMDWAIT
+ 14DD C630                    LDB     #$30            ; SEND WRITE COMMAND TO THE CF CARD
+ 14DF E707                    STB     CFCOMMAND, X
+ 14E1 108E0800                LDY     #SECBUF         ; POINT TO START OF THE MEMORY BLOCK
+ 14E5 BD1559          WRLOOP  JSR     DATWAIT
+ 14E8 A6A0                    LDA     ,Y+             ; READ THE BYTE FROM THE BUFFER
+ 14EA A700                    STA     CFDATA, X       ; WRITE THE DATA BYTE TO THE CF CARD.
+ 14EC BD1559                  JSR     DATWAIT
+ 14EF A607                    LDA     CFSTATUS, X
+ 14F1 8508                    BITA    #$08
+ 14F3 26F0                    BNE     WRLOOP
+ 14F5 3501                    PULS    CC             ; RESTORE INTERRUPT
+ 14F7 35B6                    PULS    Y,X,B,A,PC
+
+                      ; READ PARAMETERS FROM THE CF CARD TO MEMORY
+ 14F9 3436            READCF  PSHS    Y,X,B,A
+ 14FB 3401                    PSHS    CC
+ 14FD 1A50                    ORCC    #$50                ; SET INTERRUPT BITS - DISABLE IRQ FIRQ
+ 14FF BE011F                  LDX     CFADDRES
+ 1502 BD154E                  JSR     CMDWAIT
+ 1505 C6EC                    LDB     #$EC                ; SEND READ PARAMETERS TO THE CF CARD
+ 1507 E707                    STB     CFCOMMAND, X
+ 1509 108E0800                LDY     #SECBUF             ; POINT TO THE START OF THE MEMORY BLOCK
+ 150D BD1559          RDLOOP  JSR     DATWAIT
+ 1510 A600                    LDA     CFDATA, X           ; READ THE DATA BYTE
+ 1512 A7A0                    STA     ,Y+                 ; WRITE IT TO THE BUFFER
+ 1514 BD1559                  JSR     DATWAIT
+ 1517 A607                    LDA     CFSTATUS, X
+ 1519 8508                    BITA    #$08
+ 151B 26F0                    BNE     RDLOOP
+ 151D 3501                    PULS    CC                  ; RESTORE INTERRUPT
+ 151F 35B6                    PULS    Y,X,B,A,PC
+
+                      ; COMPUTE LBA FROM TRACK AND SECTOR
+ 1521 B60104          COMPLBA LDA     >TRACK
+ 1524 2719                    BEQ     TR00            ; CHECK IF TRACK 0
+ 1526 F60101                  LDB     >MAXS
+ 1529 3D                      MUL                     ; MULTIPLY A.B TO A AND B (A MSB)
+ 152A 3406                    PSHD    D
+ 152C 7F0106                  CLR     >SEC16          ; SET SECTOR AS 16 BITS NUMBER INTO SEC16
+ 152F B60105                  LDA     >SECTOR
+ 1532 B70107                  STA     SEC16+1
+ 1535 3506                    PULS    D
+ 1537 F30106                  ADDD    >SEC16          ; ADD TO D
+ 153A 830001                  DECD                    ; -1
+ 153D 2008                    BRA     ENDLBA
+ 153F F60105          TR00    LDB     >SECTOR         ; IN TRACK 0
+ 1542 C101                    CMPB    #1              ; CHECK IF SECTOR<=1
+ 1544 2301                    BLS     ENDLBA
+ 1546 5A                      DECB                    ; IF SECTOR>1 AND TRACK=0 THEN LBA0=SECTOR-1
+ 1547 F7011C          ENDLBA  STB     >LBA0
+ 154A B7011B                  STA     >LBA1
+ 154D 39                      RTS
+
+                      ; WAIT FOR CF CARD READY WHEN READING/WRITING TO CF CARD
+                      ; CHECK BUSY = 0 (BIT 7) THEN READY = 1 (BIT 6)
+ 154E 8D09            CMDWAIT BSR     DATWAIT
+ 1550 E69F0121        CMD1    LDB     [CFSTATUL]      ; READ THE STATUS REGISTER
+ 1554 C540                    BITB    #%01000000      ; ISOLATE THE READY BIT
+ 1556 27F8                    BEQ     CMD1            ; WAIT FOR THE BIT TO CLEAR
+ 1558 39                      RTS
+
+                      ; WAIT FOR CF CARD READY WHEN READING/WRITING TO CF CARD
+                      ; CHECK FOR BUSY = 0 (BIT 7)
+ 1559 E69F0121        DATWAIT LDB     [CFSTATUL]      ; READ THE STATUS REGISTER
+ 155D C580                    BITB    #%10000000      ; ISOLATE THE BUSY BIT
+ 155F 26F8                    BNE     DATWAIT         ; WAIT FOR THE BIT TO CLEAR
+ 1561 39                      RTS
+
+                      ; ERROR INITIALISING THE CF CARD
+ 1562 E69F0121        CFERR   LDB     [CFSTATUL]
+ 1566 C501                    BITB    #$01            ; ISOLATE THE ERROR BIT
+ 1568 39                      RTS                     ; RETURN Z CLEAR IF ERROR
+
+                      ;* COMPACT FLASH FLEX LOADER FOR ELEKTOR EC-6809
+                      ;* ADAPTED BY PH.ROEHR 04/2024
+
+                      ;* CONSTANTS
+
+                      ;* EXTERNAL LABEL EQUATES
+
+ C080                 STACK       EQU     $C080
+ C300                 SCTBUF      EQU     $C300
+ E82A                 RDBOOT      EQU     $E82A
+ DEB0                 CFOK        EQU     $DEB0
+ DEB6                 CFTRK       EQU     CFOK+6
+                      ; ASNPRM      EQU     $CC0B      ; ASN PARAMETERS
+ C843                 STRUPDSK    EQU     $C843      ; DISK NUMBER ADDRESS FOR STARTUP.TXT
+ EEB0                 ROMLATCH    EQU     $EEB0
+
+                                  ORG     $C100
+
+ C100 200A            CMDADR      BRA    CMDSTA
+
+ C102 0000                        FCB     $00,$00
+ C104 00                          FCB     $00
+ C105 3B              FLXTRK      FCB     $3B         ; FILE START TRACK
+ C106 38                          FCB     $38         ; FILE START SECTOR
+ C107 C100            TADR        FCB     $C1,$00     ; TRANSFER ADDRESS
+ C109 0000            LADR1       FCB     $00,$00
+ C10B 00                          FCB     $00
+
+ C10C 10CEC080        CMDSTA      LDS     #STACK      ; SETUP STACK
+ C110 C601                        LDB     #$01        ; SET I/O EPROM PAGE 1
+ C112 F7EEB0                      STB     ROMLATCH
+ C115 FCC105                      LDD     FLXTRK      ; GET FLEX.SYS TRACK & SECTOR
+ C118 FDC300                      STD     SCTBUF      ; SETUP STARTING TRK & SCT INTO BUFFER FOR 1ST SECTOR READ
+ C11B 108EC400                    LDY     #SCTBUF+256
+
+                      ;* MESSAGES
+
+ C11F 8EC186                      LDX    #MLOAD
+ C122 3F                          SWI
+ C123 03                          FCB     $03         ; PRINT
+ C124 3F                          SWI
+ C125 06                          FCB     $06
+
+                      ;* PERFORM ACTUAL BOOT LOAD
+
+ C126 8D35            LOAD1       BSR     GETCH       ; GET A CHARACTER
+ C128 8102                        CMPA    #$02        ; DATA RECORD HEADER ?
+ C12A 2710                        BEQ     LOAD2       ; SKIP IF SO
+ C12C 8116                        CMPA    #$16        ; TRANSFER ADDRESS HEADER ?
+ C12E 26F6                        BNE     LOAD1       ; LOOP IF NEITHER
+ C130 8D2B                        BSR     GETCH       ; GET TRANSFER ADDRESS
+ C132 B7C107                      STA     TADR
+ C135 8D26                        BSR     GETCH
+ C137 B7C108                      STA     TADR+1
+ C13A 20EA                        BRA     LOAD1       ; CONTINUE LOAD
+ C13C 8D1F            LOAD2       BSR     GETCH       ; GET LOAD ADDRESS
+ C13E B7C109                      STA     LADR1
+ C141 8D1A                        BSR     GETCH
+ C143 B7C10A                      STA     LADR1+1
+ C146 8D15                        BSR     GETCH       ; GET BYTE COUNT
+ C148 1F89                        TFR     A,B         ; PUT IN B
+ C14A 4D                          TSTA
+ C14B 27D9                        BEQ     LOAD1       ; LOOP IF COUNT = 0
+ C14D BEC109                      LDX     LADR1       ; GET LOAD ADDRESS
+ C150 3414            LOAD3       PSHS    B,X
+ C152 8D09                        BSR     GETCH       ; GET A DATA CHARACTER
+ C154 3514                        PULS    B,X
+ C156 A780                        STA     ,X+         ; PUT CHARACTER
+ C158 5A                          DECB                ; END OF DATA IN RECORD ?
+ C159 26F5                        BNE     LOAD3       ; LOOP IF NOT
+ C15B 20C9                        BRA     LOAD1       ; GET ANOTHER RECORD
+
+                      ;* GET CHARACTER ROUTINE
+
+ C15D 108CC400        GETCH       CMPY    #SCTBUF+256 ; OUT OF DATA ?
+ C161 2611                        BNE     GETCH4      ; GO READ CHARACTER IF NOT
+ C163 8EC300                      LDX     #SCTBUF     ; POINT TO BUFFER
+ C166 EC00                        LDD     0,X         ; GET FORWARD LINK
+ C168 270D                        BEQ     GO          ; IF ZERO, FILE IS LOADED
+ C16A FDDEB6                      STD     CFTRK       ; STORE TRK-SEC
+ C16D BDE82A                      JSR     RDBOOT      ; READ NEXT SECTOR
+ C170 108EC304                    LDY     #SCTBUF+4   ; POINT PAST LINK
+ C174 A6A0            GETCH4      LDA     ,Y+         ; ELSE GET A CHARACTER
+ C176 39                          RTS
+
+                      ;* FILE IS LOADED, PREPARE AND JUMP TO IT
+
+ C177 CC0202          GO          LDD     #$0202      ; IN CASE OF CF BOOT
+ C17A FDCC0B                      STD     ASNPRM      ; SET S AND W DISKS AS 3
+ C17D 8602                        LDA     #$02
+ C17F B7C843                      STA     STRUPDSK    ; CHANGE DISK 0 TO 3 FOR STARTUP.TXT
+ C182 6E9FC107                    JMP     [TADR]
+
+ C186 4C6F6164696E67  MLOAD       FCC     "Loading from CF..."
+ C18D 2066726F6D2043
+ C194 462E2E2E
+ C198 04                          FCB     $04
+
+ C199 00                          FCB     $00
+ C19A 00                          FCB     $00
+ C19B 00                          FCB     $00
+ C19C 00                          FCB     $00
+ C19D 00                          FCB     $00
+ C19E 00                          FCB     $00
+ C19F 00                          FCB     $00
+ C1A0 00                          FCB     $00
+ C1A1 00                          FCB     $00
+ C1A2 00                          FCB     $00
+ C1A3 00                          FCB     $00
+ C1A4 00                          FCB     $00
+ C1A5 00                          FCB     $00
+ C1A6 00                          FCB     $00
+ C1A7 00                          FCB     $00
+ C1A8 00                          FCB     $00
+ C1A9 00                          FCB     $00
+ C1AA 00                          FCB     $00
+ C1AB 00                          FCB     $00
+ C1AC 00                          FCB     $00
+ C1AD 00                          FCB     $00
+ C1AE 00                          FCB     $00
+ C1AF 00                          FCB     $00
+ C1B0 00                          FCB     $00
+ C1B1 00                          FCB     $00
+ C1B2 00                          FCB     $00
+ C1B3 00                          FCB     $00
+ C1B4 00                          FCB     $00
+ C1B5 00                          FCB     $00
+ C1B6 00                          FCB     $00
+ C1B7 00                          FCB     $00
+ C1B8 00                          FCB     $00
+ C1B9 00                          FCB     $00
+ C1BA 00                          FCB     $00
+ C1BB 00                          FCB     $00
+ C1BC 00                          FCB     $00
+ C1BD 00                          FCB     $00
+ C1BE 00                          FCB     $00
+ C1BF 00                          FCB     $00
+ C1C0 00                          FCB     $00
+ C1C1 00                          FCB     $00
+ C1C2 00                          FCB     $00
+ C1C3 00                          FCB     $00
+ C1C4 00                          FCB     $00
+ C1C5 00                          FCB     $00
+ C1C6 00                          FCB     $00
+ C1C7 00                          FCB     $00
+ C1C8 00                          FCB     $00
+ C1C9 00                          FCB     $00
+ C1CA 00                          FCB     $00
+ C1CB 00                          FCB     $00
+ C1CC 00                          FCB     $00
+ C1CD 00                          FCB     $00
+ C1CE 00                          FCB     $00
+ C1CF 00                          FCB     $00
+ C1D0 00                          FCB     $00
+ C1D1 00                          FCB     $00
+ C1D2 00                          FCB     $00
+ C1D3 00                          FCB     $00
+ C1D4 00                          FCB     $00
+ C1D5 00                          FCB     $00
+ C1D6 00                          FCB     $00
+ C1D7 00                          FCB     $00
+ C1D8 00                          FCB     $00
+ C1D9 00                          FCB     $00
+ C1DA 00                          FCB     $00
+ C1DB 00                          FCB     $00
+ C1DC 00                          FCB     $00
+ C1DD 00                          FCB     $00
+ C1DE 00                          FCB     $00
+ C1DF 00                          FCB     $00
+ C1E0 00                          FCB     $00
+ C1E1 00                          FCB     $00
+ C1E2 00                          FCB     $00
+ C1E3 00                          FCB     $00
+ C1E4 00                          FCB     $00
+ C1E5 00                          FCB     $00
+ C1E6 00                          FCB     $00
+ C1E7 00                          FCB     $00
+ C1E8 00                          FCB     $00
+ C1E9 00                          FCB     $00
+ C1EA 00                          FCB     $00
+ C1EB 00                          FCB     $00
+ C1EC 00                          FCB     $00
+ C1ED 00                          FCB     $00
+ C1EE 00                          FCB     $00
+ C1EF 00                          FCB     $00
+ C1F0 00                          FCB     $00
+ C1F1 00                          FCB     $00
+ C1F2 00                          FCB     $00
+ C1F3 00                          FCB     $00
+ C1F4 00                          FCB     $00
+ C1F5 00                          FCB     $00
+ C1F6 00                          FCB     $00
+ C1F7 00                          FCB     $00
+ C1F8 00                          FCB     $00
+ C1F9 00                          FCB     $00
+ C1FA 00                          FCB     $00
+ C1FB 00                          FCB     $00
+
+                                  ORG     $C200-4
+ C1FC 464C4558                    FCB     'F', 'L', 'E', 'X'
+
+                      ;* FILL REMAINING SPACE WITH $00
+
+ C200 00                          FCB     $00
+ C201 00                          FCB     $00
+ C202 00                          FCB     $00
+ C203 00                          FCB     $00
+ C204 00                          FCB     $00
+ C205 00                          FCB     $00
+ C206 00                          FCB     $00
+ C207 00                          FCB     $00
+ C208 00                          FCB     $00
+ C209 00                          FCB     $00
+ C20A 00                          FCB     $00
+ C20B 00                          FCB     $00
+ C20C 00                          FCB     $00
+ C20D 00                          FCB     $00
+ C20E 00                          FCB     $00
+ C20F 00                          FCB     $00
+ C210 00                          FCB     $00
+ C211 00                          FCB     $00
+ C212 00                          FCB     $00
+ C213 00                          FCB     $00
+ C214 00                          FCB     $00
+ C215 00                          FCB     $00
+ C216 00                          FCB     $00
+ C217 00                          FCB     $00
+ C218 00                          FCB     $00
+ C219 00                          FCB     $00
+ C21A 00                          FCB     $00
+ C21B 00                          FCB     $00
+ C21C 00                          FCB     $00
+ C21D 00                          FCB     $00
+ C21E 00                          FCB     $00
+ C21F 00                          FCB     $00
+ C220 00                          FCB     $00
+ C221 00                          FCB     $00
+ C222 00                          FCB     $00
+ C223 00                          FCB     $00
+ C224 00                          FCB     $00
+ C225 00                          FCB     $00
+ C226 00                          FCB     $00
+ C227 00                          FCB     $00
+ C228 00                          FCB     $00
+ C229 00                          FCB     $00
+ C22A 00                          FCB     $00
+ C22B 00                          FCB     $00
+ C22C 00                          FCB     $00
+ C22D 00                          FCB     $00
+ C22E 00                          FCB     $00
+ C22F 00                          FCB     $00
+ C230 00                          FCB     $00
+ C231 00                          FCB     $00
+ C232 00                          FCB     $00
+ C233 00                          FCB     $00
+ C234 00                          FCB     $00
+ C235 00                          FCB     $00
+ C236 00                          FCB     $00
+ C237 00                          FCB     $00
+ C238 00                          FCB     $00
+ C239 00                          FCB     $00
+ C23A 00                          FCB     $00
+ C23B 00                          FCB     $00
+ C23C 00                          FCB     $00
+ C23D 00                          FCB     $00
+ C23E 00                          FCB     $00
+ C23F 00                          FCB     $00
+ C240 00                          FCB     $00
+ C241 00                          FCB     $00
+ C242 00                          FCB     $00
+ C243 00                          FCB     $00
+ C244 00                          FCB     $00
+ C245 00                          FCB     $00
+ C246 00                          FCB     $00
+ C247 00                          FCB     $00
+ C248 00                          FCB     $00
+ C249 00                          FCB     $00
+ C24A 00                          FCB     $00
+ C24B 00                          FCB     $00
+ C24C 00                          FCB     $00
+ C24D 00                          FCB     $00
+ C24E 00                          FCB     $00
+ C24F 00                          FCB     $00
+ C250 00                          FCB     $00
+ C251 00                          FCB     $00
+ C252 00                          FCB     $00
+ C253 00                          FCB     $00
+ C254 00                          FCB     $00
+ C255 00                          FCB     $00
+ C256 00                          FCB     $00
+ C257 00                          FCB     $00
+ C258 00                          FCB     $00
+ C259 00                          FCB     $00
+ C25A 00                          FCB     $00
+ C25B 00                          FCB     $00
+ C25C 00                          FCB     $00
+ C25D 00                          FCB     $00
+ C25E 00                          FCB     $00
+ C25F 00                          FCB     $00
+ C260 00                          FCB     $00
+ C261 00                          FCB     $00
+ C262 00                          FCB     $00
+ C263 00                          FCB     $00
+ C264 00                          FCB     $00
+ C265 00                          FCB     $00
+ C266 00                          FCB     $00
+ C267 00                          FCB     $00
+ C268 00                          FCB     $00
+ C269 00                          FCB     $00
+ C26A 00                          FCB     $00
+ C26B 00                          FCB     $00
+ C26C 00                          FCB     $00
+ C26D 00                          FCB     $00
+ C26E 00                          FCB     $00
+ C26F 00                          FCB     $00
+ C270 00                          FCB     $00
+ C271 00                          FCB     $00
+ C272 00                          FCB     $00
+ C273 00                          FCB     $00
+ C274 00                          FCB     $00
+ C275 00                          FCB     $00
+ C276 00                          FCB     $00
+ C277 00                          FCB     $00
+ C278 00                          FCB     $00
+ C279 00                          FCB     $00
+ C27A 00                          FCB     $00
+ C27B 00                          FCB     $00
+ C27C 00                          FCB     $00
+ C27D 00                          FCB     $00
+ C27E 00                          FCB     $00
+ C27F 00                          FCB     $00
+ C280 00                          FCB     $00
+ C281 00                          FCB     $00
+ C282 00                          FCB     $00
+ C283 00                          FCB     $00
+ C284 00                          FCB     $00
+ C285 00                          FCB     $00
+ C286 00                          FCB     $00
+ C287 00                          FCB     $00
+ C288 00                          FCB     $00
+ C289 00                          FCB     $00
+ C28A 00                          FCB     $00
+ C28B 00                          FCB     $00
+ C28C 00                          FCB     $00
+ C28D 00                          FCB     $00
+ C28E 00                          FCB     $00
+ C28F 00                          FCB     $00
+ C290 00                          FCB     $00
+ C291 00                          FCB     $00
+ C292 00                          FCB     $00
+ C293 00                          FCB     $00
+ C294 00                          FCB     $00
+ C295 00                          FCB     $00
+ C296 00                          FCB     $00
+ C297 00                          FCB     $00
+ C298 00                          FCB     $00
+ C299 00                          FCB     $00
+ C29A 00                          FCB     $00
+ C29B 00                          FCB     $00
+ C29C 00                          FCB     $00
+ C29D 00                          FCB     $00
+ C29E 00                          FCB     $00
+ C29F 00                          FCB     $00
+ C2A0 00                          FCB     $00
+ C2A1 00                          FCB     $00
+ C2A2 00                          FCB     $00
+ C2A3 00                          FCB     $00
+ C2A4 00                          FCB     $00
+ C2A5 00                          FCB     $00
+ C2A6 00                          FCB     $00
+ C2A7 00                          FCB     $00
+ C2A8 00                          FCB     $00
+ C2A9 00                          FCB     $00
+ C2AA 00                          FCB     $00
+ C2AB 00                          FCB     $00
+ C2AC 00                          FCB     $00
+ C2AD 00                          FCB     $00
+ C2AE 00                          FCB     $00
+ C2AF 00                          FCB     $00
+ C2B0 00                          FCB     $00
+ C2B1 00                          FCB     $00
+ C2B2 00                          FCB     $00
+ C2B3 00                          FCB     $00
+ C2B4 00                          FCB     $00
+ C2B5 00                          FCB     $00
+ C2B6 00                          FCB     $00
+ C2B7 00                          FCB     $00
+ C2B8 00                          FCB     $00
+ C2B9 00                          FCB     $00
+ C2BA 00                          FCB     $00
+ C2BB 00                          FCB     $00
+ C2BC 00                          FCB     $00
+ C2BD 00                          FCB     $00
+ C2BE 00                          FCB     $00
+ C2BF 00                          FCB     $00
+ C2C0 00                          FCB     $00
+ C2C1 00                          FCB     $00
+ C2C2 00                          FCB     $00
+ C2C3 00                          FCB     $00
+ C2C4 00                          FCB     $00
+ C2C5 00                          FCB     $00
+ C2C6 00                          FCB     $00
+ C2C7 00                          FCB     $00
+ C2C8 00                          FCB     $00
+ C2C9 00                          FCB     $00
+ C2CA 00                          FCB     $00
+ C2CB 00                          FCB     $00
+ C2CC 00                          FCB     $00
+ C2CD 00                          FCB     $00
+ C2CE 00                          FCB     $00
+ C2CF 00                          FCB     $00
+ C2D0 00                          FCB     $00
+ C2D1 00                          FCB     $00
+ C2D2 00                          FCB     $00
+ C2D3 00                          FCB     $00
+ C2D4 00                          FCB     $00
+ C2D5 00                          FCB     $00
+ C2D6 00                          FCB     $00
+ C2D7 00                          FCB     $00
+ C2D8 00                          FCB     $00
+ C2D9 00                          FCB     $00
+ C2DA 00                          FCB     $00
+ C2DB 00                          FCB     $00
+ C2DC 00                          FCB     $00
+ C2DD 00                          FCB     $00
+ C2DE 00                          FCB     $00
+ C2DF 00                          FCB     $00
+ C2E0 00                          FCB     $00
+ C2E1 00                          FCB     $00
+ C2E2 00                          FCB     $00
+ C2E3 00                          FCB     $00
+ C2E4 00                          FCB     $00
+ C2E5 00                          FCB     $00
+ C2E6 00                          FCB     $00
+ C2E7 00                          FCB     $00
+ C2E8 00                          FCB     $00
+ C2E9 00                          FCB     $00
+ C2EA 00                          FCB     $00
+ C2EB 00                          FCB     $00
+ C2EC 00                          FCB     $00
+ C2ED 00                          FCB     $00
+ C2EE 00                          FCB     $00
+ C2EF 00                          FCB     $00
+ C2F0 00                          FCB     $00
+ C2F1 00                          FCB     $00
+ C2F2 00                          FCB     $00
+ C2F3 00                          FCB     $00
+ C2F4 00                          FCB     $00
+ C2F5 00                          FCB     $00
+ C2F6 00                          FCB     $00
+ C2F7 00                          FCB     $00
+ C2F8 00                          FCB     $00
+ C2F9 00                          FCB     $00
+ C2FA 00                          FCB     $00
+ C2FB 00                          FCB     $00
+ C2FC 00                          FCB     $00
+ C2FD 00                          FCB     $00
+ C2FE 00                          FCB     $00
+ C2FF 00                          FCB     $00
+
+                      ;            END     CMDADR
+ 1000                             END     NEWCF
+
+SYMBOL TABLE
+    ABORTS 02 1377    ASNPRM 00 CC0B     BOOTL 02 126F CF1ADDRESS 00 EE80
+   CF1MTRK 00 DEBA       CF2 02 12B3 CF2ADDRESS 00 EEF0   CF2MTRK 00 DEBC
+  CFADDRES 02 011F CFCOMMAND 00 0007    CFDATA 00 0000   CFDSKN1 00 0002
+   CFDSKN2 00 0003     CFERR 02 1562   CFERROR 00 0001 CFFEATURE 00 0001
+   CFINIER 02 133C   CFINIOK 02 12CC    CFLBA0 00 0003    CFLBA1 00 0004
+    CFLBA2 00 0005    CFLBA3 00 0006      CFOK 00 DEB0  CFSECCNT 00 0002
+  CFSTATUL 02 0121  CFSTATUS 00 0007     CFTRK 00 DEB6    CLRBUF 02 1110
+    CLRDIR 02 124C      CLRL 02 11E8      CMD1 02 1550    CMDADR 02 C100
+    CMDSTA 02 C10C   CMDWAIT 02 154E    CMPLTE 02 13C6   COMPLBA 02 1521
+    CONTIN 02 103B   CONTIN0 02 1030   CONTIN1 02 105F   CONTIN2 02 1047
+   CONTIN3 02 104A   DATWAIT 02 1559    DOBOOT 02 1268    ENDBUF 00 0A00
+   ENDFORM 02 1156    ENDLBA 02 1547       EOT 00 0004      EXIT 02 1101
+     EXIT2 02 1104     FKFCB 02 0108    FLXTRK 02 C105     FMAXS 02 0100
+     FMAXT 02 0102      FORM 02 1122     FORM1 02 100E    FORM20 02 10A0
+    FORM27 02 10EA     FORM3 02 1125    FORM30 02 10BE     FORM4 02 112E
+    FORM40 02 10DB     FORM5 02 1137    FORM50 02 1147    FORMAT 02 110D
+      GCAS 02 119D     GETCH 02 C15D    GETCH4 02 C174    GETCHR 00 CD15
+    GETFIL 00 CD2D    GETHEX 00 CD42        GO 02 C177    INBUFF 00 CD1B
+     INDEC 00 CD48    INITCF 02 147B    INITRK 02 1408     LADR1 02 C109
+      LBA0 02 011C      LBA1 02 011B      LBA2 02 011A      LBA3 02 0119
+     LOAD1 02 C126     LOAD2 02 C13C     LOAD3 02 C150    MAXLBA 02 011D
+      MAXS 02 0101      MAXT 02 0103     MINS0 00 0000     MINS1 00 0001
+     MLOAD 02 C186     MNSTR 02 13E8   MSGBOOT 02 13B2    MSGCFS 02 130B
+    MSGDIR 02 139D    MSGLBA 02 12E7    MSGSIR 02 1388      NAML 02 11F3
+     NEWCF 02 1000   NOLASTS 02 1187   NOLASTT 02 117B    NOTTR0 02 119A
+    NUMSTR 02 13F7    OUTADR 00 CD45    OUTDEC 00 CD39    OUTHEX 00 CD3C
+     OUTIN 02 1003    OUTIN2 02 1006     PCRLF 00 CD24    PSTRNG 00 CD1E
+    PUTCHR 00 CD18    RDBOOT 00 E82A    RDLOOP 02 150D    READCF 02 14F9
+  ROMLATCH 00 EEB0     SCRDS 02 135E    SCTBUF 00 C300     SEC16 02 0106
+    SECBUF 00 0800     SECHD 02 115F    SECHDE 02 11A0    SECNUM 02 1438
+     SECST 02 13D7     SECSZ 00 00FF    SECTOR 02 0105   SET0000 02 1174
+    SETDIR 02 1249    SETSIR 02 11E5       SPC 00 0020     STACK 00 C080
+  STRUPDSK 00 C843     SURES 02 12BC    SYSDAY 00 CC0F    SYSMTH 00 CC0E
+     SYSYR 00 CC10      TADR 02 C107      TR00 02 153F     TRACK 02 0104
+    TRKNUM 02 145F        VN 02 1002    VOLNAM 02 010C    VOLNUM 02 0117
+     WARMS 00 CD03   WRITECF 02 14AA    WRLOOP 02 14E5    WTSECT 02 11A1
+144 SYMBOLS
+
+0 error(s), 0 warning(s)
