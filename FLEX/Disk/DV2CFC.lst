@@ -1,0 +1,174 @@
+
+                      ;*   ELEKTOR EC6809 DISK DRIVER
+                      ;*   THIS VERSION IS FOR 2 CF LOCATED AT EE80 AND EEF0
+                      ;*   05/2024 PH. ROEHR
+
+                      ;*   I/O BOARD EPROM ROUTINES ADDRESSES
+
+ E800                 SEEK        EQU     $E800
+ E803                 READ        EQU     SEEK+3
+ E806                 WRITE       EQU     SEEK+6
+ E809                 VERIF       EQU     SEEK+9
+ E80C                 RST         EQU     SEEK+12
+ E80F                 DRV         EQU     SEEK+15
+ E812                 CHKRDY      EQU     SEEK+18
+ E815                 QUICK       EQU     SEEK+21
+ E818                 CHKCF       EQU     SEEK+24
+ E81B                 RDCFSEC     EQU     SEEK+27
+ E81E                 WRCFSEC     EQU     SEEK+30
+ E821                 CFSEEK      EQU     SEEK+33
+ E824                 CFVRFY      EQU     SEEK+36
+ E827                 CFBOOT      EQU     SEEK+39
+ E82A                 RDBOOT      EQU     SEEK+42
+
+                      ; VARIOUS ADDRESSES
+
+ EEB0                 ROMLATCH    EQU     $EEB0
+ EEC0                 RAMLATCH    EQU     $EEC0
+
+                      ;*   CF REGS
+
+ EE80                 CF1ADDRES   EQU     $EE80
+ EEF0                 CF2ADDRES   EQU     $EEF0
+ 0000                 CFDATA      EQU     $00     ; DATA PORT
+ 0001                 CFERROR     EQU     $01     ; ERROR CODE (READ)
+ 0001                 CFFEATURE   EQU     $01     ; FEATURE SET (WRITE)
+ 0002                 CFSECCNT    EQU     $02     ; NUMBER OF SECTORS TO TRANSFER
+ 0003                 CFLBA0      EQU     $03     ; SECTOR ADDRESS LBA 0 [0:7]
+ 0004                 CFLBA1      EQU     $04     ; SECTOR ADDRESS LBA 1 [8:15]
+ 0005                 CFLBA2      EQU     $05     ; SECTOR ADDRESS LBA 2 [16:23]
+ 0006                 CFLBA3      EQU     $06     ; SECTOR ADDRESS LBA 3 [24:27 (LSB)]
+ 0007                 CFSTATUS    EQU     $07     ; STATUS (READ)
+ 0007                 CFCOMMAND   EQU     $07     ; COMMAND SET (WRITE)
+
+                      ;*  DISK DRIVER ROUTINE JUMP TABLE
+
+                              ORG     $DE00
+
+ DE00 7EE803          DREAD   JMP     READ
+ DE03 7EE806          DWRITE  JMP     WRITE
+ DE06 7EE809          DVERIFY JMP     VERIF
+ DE09 7EE80C          DRESTOR JMP     RST
+ DE0C 7EE80F          DDRIVE  JMP     DRV
+ DE0F 7EE812          DCHECK  JMP     CHKRDY
+ DE12 7EE815          DQUICK  JMP     QUICK
+ DE15 7EDE1E          DINIT   JMP     INIT
+ DE18 7EDE2D          DWARM   JMP     WARM
+ DE1B 7EE800          DSEEK   JMP     SEEK
+
+                      ;*   INIT    THIS ROUTINE PERFORMS ANY NECESSARY INITIALIZATION OF THE
+                      ;*           DRIVERS DURING COLD START (AT BOOT TIME). ACTUALLY, ANY
+                      ;*           OPERATION WHICH MUST BE DONE WHEN THE SYSTEM IS FIRST BOOTED
+                      ;*           CAN BE DONE HERE.
+                      ;*
+                      ;*           ENTRY - NO PARAMETERS
+                      ;*
+                      ;*           EXIT - A, B, X, Y, AND U MAY BE DESTROYED
+                      ;*
+                      ;*   ITS BETTER TO HAVE INIT HERE BECAUSE ROMLATCH = $FF AFTER RESET
+                      ;*   AND WE CAN SET IT $01 BEFORE ANY OPERATION
+
+ DE1E 4F              INIT    CLRA
+ DE1F 1F8B                    TFR     A,DP
+ DE21 C601                    LDB     #$01       ; SET I/O EPROM PAGE TO 1 (DEFAULT PAGE)
+ DE23 F7EEB0                  STB     ROMLATCH
+ DE26 7FEEC0                  CLR     RAMLATCH   ; SET PAGINED RAM TO PAGE 0
+ DE29 12                      NOP
+ DE2A BDE818                  JSR     CHKCF      ; CHECK IF CF PRESENT AND INIT CF
+
+                      ;*   WARM    PERFORMS ANY NECESSARY FUNCTIONS DURING FLEX WARMSTART. FLEX
+                      ;*           CALLS THIS ROUTINE EACH TIME IT GOES THRU THE WARM START
+                      ;*           PROCEDURE (AFTER EVERY COMMAND). AS AN EXAMPLE, SOME
+                      ;*           CONTROLLERS USE PIA'S FOR COMMUNICATION WITH THE PROCESSOR.
+                      ;*           IF FLEX IS EXITED WITH A CPU RESET, THESE PIA'S MAY ALSO BE
+                      ;*           RESET SUCH THAT THE CONTROLLER WOULD NOT FUNCTION PROPERLY
+                      ;*           UPON A JUMP TO THE FLEX WARM START ENTRY POINT. THIS ROUTINE
+                      ;*           COULD RE-INITIALIZE THE PIA WHEN THE WARM START WAS EXECUTED.
+                      ;*
+                      ;*           ENTRY - NO PARAMETERS
+                      ;*
+                      ;*           EXIT - A, B, X, Y, AND U MAY BE DESTROYED
+
+ DE2D 39              WARM    RTS
+
+                      ;*   PARAM TABLE FOR ESS540 EPROM OPERATIONS AND FOR CF
+                      ;*   $DE80 -> DE91  RESERVED AS ESS540 EPROM DISK OPERATIONS
+                      ;*   $DE92 -> DEAF  RESERVED AS ESS540 EPROM DISPLAY OPERATIONS
+                      ;*   $DEB0 -> DEC3  RESERVED AS PARAMETERS FOR CF'S
+
+                              ORG     $DE80
+
+ DE80                 DSKTAB   RMB     $DEB0-$DE80
+ DEB0                 CFOK     RMB     1             ; FLAG CF PRESENT TWO CF = 2 / ONE CF = 1 / NO CF = 0
+ DEB1                 CFSEL    RMB     1             ; FLEX SELECTED CF 0 = CF EE80 / 1 = CF EEF0
+ DEB2                 LBA0     RMB     1
+ DEB3                 LBA1     RMB     1
+ DEB4                 LBA2     RMB     1             ; ALWAYS 0 UNDER FLEX
+ DEB5                 LBA3     RMB     1             ; CLEAR LBA3, SET MASTER & LBA MODE
+ DEB6                 CFTRK    RMB     1             ; TRACK ASKED BY FLEX FOR CF
+ DEB7                 CFSEC    RMB     1             ; SECTOR ASKED BY FLEX FOR CF
+ DEB8                 CFMTRK   RMB     1             ; TRACKS MAX ON SELECTED CF
+ DEB9                 CFMSEC   RMB     1             ; SECTORS PER TRACK ON SELECTED CF
+ DEBA                 CF1MTRK  RMB     1             ; TRACKS MAX ON CF1
+ DEBB                 CF1MSEC  RMB     1             ; SECTORS PER TRACK ON CF1
+ DEBC                 CF2MTRK  RMB     1             ; TRACKS MAX ON CF2
+ DEBD                 CF2MSEC  RMB     1             ; SECTORS PER TRACK ON CF2
+ DEBE                 CFADDRES RMB     2             ; SELECTED CF ADDRESS
+ DEC0                 CFSTATUL RMB     2             ; SELECTED CF STATUS ADDRESS 16 BITS
+ DEC2                 CFSEC16  RMB     2             ; SELECTED CF SECTOR NUMBER 16 BITS
+
+                      ;* JUMP TABLE FOR FLOPPY OPERATIONS
+
+ DEC4 E803            FLTAB   FDB     READ            ; DREAD
+ DEC6 E806                    FDB     WRITE           ; DWRITE
+ DEC8 E809                    FDB     VERIF           ; DVERIFY
+                      ;        FDB     RST             ; DRESTOR
+                      ;        FDB     DRV             ; DDRIVE
+                      ;        FDB     CHKRDY          ; DCHECK
+                      ;        FDB     QUICK           ; DQUICK
+                      ;        FDB     INIT            ; DINIT
+                      ;        FDB     WARM            ; DWARM
+ DECA E800                    FDB     SEEK            ; DSEEK
+
+                      ;* JUMP TABLE FOR CF OPERATIONS
+
+ DECC E81B            CFTAB   FDB     RDCFSEC         ; DREAD
+ DECE E81E                    FDB     WRCFSEC         ; DWRITE
+ DED0 E824                    FDB     CFVRFY          ; DVERIFY
+                      ;        FDB     RST             ; DRESTOR - SAME FOR BOTH FLOPPY AND CF
+                      ;        FDB     DRV             ; DDRIVE - SAME FOR BOTH FLOPPY AND CF
+                      ;        FDB     CHKRDY          ; DCHECK - SAME FOR BOTH FLOPPY AND CF
+                      ;        FDB     QUICK           ; DQUICK - SAME FOR BOTH FLOPPY AND CF
+                      ;        FDB     INIT            ; DINIT - SAME FOR BOTH FLOPPY AND CF
+                      ;        FDB     WARM            ; DWARM - SAME FOR BOTH FLOPPY AND CF
+ DED2 E821                    FDB     CFSEEK          ; DSEEK
+
+                      ;* RESERVE 3 BYTES FOR JUMP ADDRESS (2) AND JUMP PAGE NUMBER (1)
+                      ;* IN CASE OF I/O EPROM PAGE CHANGE
+
+ DED4                         RMB     3
+
+                      ;* DF00 - DFFF IS ASSIST-09 WORK AREA - AVOID USING THIS AREA
+
+ 0000                         END     COLDS
+
+SYMBOL TABLE
+ CF1ADDRES 00 EE80   CF1MSEC 02 DEBB   CF1MTRK 02 DEBA CF2ADDRES 00 EEF0
+   CF2MSEC 02 DEBD   CF2MTRK 02 DEBC  CFADDRES 02 DEBE    CFBOOT 00 E827
+ CFCOMMAND 00 0007    CFDATA 00 0000   CFERROR 00 0001 CFFEATURE 00 0001
+    CFLBA0 00 0003    CFLBA1 00 0004    CFLBA2 00 0005    CFLBA3 00 0006
+    CFMSEC 02 DEB9    CFMTRK 02 DEB8      CFOK 02 DEB0     CFSEC 02 DEB7
+   CFSEC16 02 DEC2  CFSECCNT 00 0002    CFSEEK 00 E821     CFSEL 02 DEB1
+  CFSTATUL 02 DEC0  CFSTATUS 00 0007     CFTAB 02 DECC     CFTRK 02 DEB6
+    CFVRFY 00 E824     CHKCF 00 E818    CHKRDY 00 E812     COLDS 06 0000
+    DCHECK 02 DE0F    DDRIVE 02 DE0C     DINIT 02 DE15    DQUICK 02 DE12
+     DREAD 02 DE00   DRESTOR 02 DE09       DRV 00 E80F     DSEEK 02 DE1B
+    DSKTAB 02 DE80   DVERIFY 02 DE06     DWARM 02 DE18    DWRITE 02 DE03
+     FLTAB 02 DEC4      INIT 02 DE1E      LBA0 02 DEB2      LBA1 02 DEB3
+      LBA2 02 DEB4      LBA3 02 DEB5     QUICK 00 E815  RAMLATCH 00 EEC0
+    RDBOOT 00 E82A   RDCFSEC 00 E81B      READ 00 E803  ROMLATCH 00 EEB0
+       RST 00 E80C      SEEK 00 E800     VERIF 00 E809      WARM 02 DE2D
+   WRCFSEC 00 E81E     WRITE 00 E806
+62 SYMBOLS
+
+0 error(s), 0 warning(s)
