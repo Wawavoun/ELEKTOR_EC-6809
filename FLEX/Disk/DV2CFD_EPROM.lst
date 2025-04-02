@@ -1,0 +1,943 @@
+                      ;*   ELEKTOR EC6809 DISK DRIVER
+                      ;*   INTO I/O EPROM LOCATED AT $E800
+                      ;*   WITH AT LEAST TWO PAGES OF 512 BYTES
+                      ;*
+                      ;*   THIS VERSION CAN MANAGE TWO CF LOCATED AT $EE80 & $EEF0
+                      ;*   AND MAPPED AS DISK 2 & 3 RESPECTIVELY.
+                      ;*   NOW CF TRANSFER ARE 16 BIT LONG INCREASING SPEED.
+                      ;*
+                      ;*   03/2025 PH. ROEHR
+
+                      ;*   ESS540 EPROM ROUTINES ADDRESS
+
+ F006                 EREAD       EQU     $F006
+ F009                 EWRITE      EQU     $F009
+ F00F                 ERESTO      EQU     $F00F
+ F012                 EDRSEL      EQU     $F012
+ F003                 ESEEK       EQU     $F003
+ F01E                 EINIT       EQU     $F01E
+ F015                 EVERIF      EQU     $F015
+ F206                 ETEMPO      EQU     $F206
+ F01E                 EINITAB     EQU     $F01E
+ FFFE                 RESET       EQU     $FFFE
+
+                      ;* FLEX EQUATES
+
+ C080                 INPBUF      EQU     $C080   ; FLEX INPUT BUFFER ADDRESS
+ CC34                 PRCNT       EQU     $CC34   ; PRINTER RUNNING FLAG
+
+                      ;*   CF REGS
+
+ EE80                 CF1ADDRES   EQU     $EE80
+ EEF0                 CF2ADDRES   EQU     $EEF0
+ 0000                 CFDATA      EQU     $00     ; DATA PORT
+ 0001                 CFERROR     EQU     $01     ; ERROR CODE (READ)
+ 0001                 CFFEATURE   EQU     $01     ; FEATURE SET (WRITE)
+ 0002                 CFSECCNT    EQU     $02     ; NUMBER OF SECTORS TO TRANSFER
+ 0003                 CFLBA0      EQU     $03     ; SECTOR ADDRESS LBA 0 [0:7]
+ 0004                 CFLBA1      EQU     $04     ; SECTOR ADDRESS LBA 1 [8:15]
+ 0005                 CFLBA2      EQU     $05     ; SECTOR ADDRESS LBA 2 [16:23]
+ 0006                 CFLBA3      EQU     $06     ; SECTOR ADDRESS LBA 3 [24:27 (LSB)]
+ 0007                 CFSTATUS    EQU     $07     ; STATUS (READ)
+ 0007                 CFCOMMAND   EQU     $07     ; COMMAND SET (WRITE)
+
+                      ;*   VARIOUS ADDRESSES
+
+ EEB0                 ROMLATCH    EQU     $EEB0
+ EA00                 CFBUFF      EQU     $EA00   ; PAGINED RAM BASE ADDRESS
+ C100                 CMDAD1      EQU     $C100
+ C200                 CMDAD2      EQU     $C200
+ DE00                 DREAD       EQU     $DE00   ; BEGIN OF FLEX DISK ROUTINES JUMP TABLE
+
+ 0002                 CFDSKNB1    EQU     $02     ; DISK NUMBER USED IN FLEX FOR CF 1 AT $EE80 !! = 2 ON EC-6809 !!
+ 0003                 CFDSKNB2    EQU     $03     ; DISK NUMBER USED IN FLEX FOR CF 2 AT $EEF0 !! = 3 ON EC-6809 !!
+
+                      ;*   PARAM TABLE FOR ESS540 EPROM AND CF OPERATIONS
+                      ;*   $DE80 -> DE91  RESERVED AS ESS540 EPROM DISK OPERATIONS
+                      ;*   $DE92 -> DEAF  RESERVED AS ESS540 EPROM DISPLAY OPERATIONS
+                      ;*   $DEB0 -> DEC3  RESERVED AS PARAMETERS FOR CF OPERATIONS
+
+ DE80                 DSKTAB   EQU     $DE80
+ DEB0                 CFOK     EQU     $DEB0         ; FLAG CF PRESENT TWO CF = 2 / ONE CF = 1 / NO CF = 0
+ DEB1                 CFSEL    EQU     CFOK+1        ; FLEX SELECTED CF 0 = CF EE80 / 1 = CF EEF0
+ DEB2                 LBA0     EQU     CFOK+2
+ DEB3                 LBA1     EQU     CFOK+3
+ DEB4                 LBA2     EQU     CFOK+4        ; ALWAYS 0 UNDER FLEX
+ DEB5                 LBA3     EQU     CFOK+5        ; CLEAR LBA3, SET MASTER & LBA MODE
+ DEB6                 CFTRK    EQU     CFOK+6        ; TRACK ASKED BY FLEX FOR CF
+ DEB7                 CFSEC    EQU     CFOK+7        ; SECTOR ASKED BY FLEX FOR CF
+ DEB8                 CFMTRK   EQU     CFOK+8        ; TRACKS MAX ON SELECTED CF
+ DEB9                 CFMSEC   EQU     CFOK+9        ; SECTORS/TRACK MAX ON SELECTED CF
+ DEBA                 CF1MTRK  EQU     CFOK+10       ; TRACKS MAX ON CF1
+ DEBB                 CF1MSEC  EQU     CFOK+11       ; SECTORS PER TRACK ON CF1
+ DEBC                 CF2MTRK  EQU     CFOK+12       ; TRACKS MAX ON CF2
+ DEBD                 CF2MSEC  EQU     CFOK+13       ; SECTORS PER TRACK ON CF2
+ DEBE                 CFADDRES EQU     CFOK+14       ; SELECTED CF ADDRESS
+ DEC0                 CFSTATUL EQU     CFOK+16       ; SELECTED CF STATUS ADDRESS 16 BITS
+ DEC2                 CFSEC16  EQU     CFOK+18       ; SELECTED CF SECTOR NUMBER 16 BITS
+
+                      ;*   FLEX DISK ROUTINE JUMP TABLE ADDRESSES FOR FLOPPY AND CF
+
+ DEC4                 FLTAB   EQU     CFOK+20
+ DECC                 CFTAB   EQU     CFOK+28
+
+                      ;*   WHERE TO STORE JUMP ADDRESS IN CASE OF CALL OF ROUTINE IN OTHER EPROM PAGE
+
+ DED4                 JMPADR  EQU     CFOK+36
+
+                      ;*   ELEKTOR EC6809 DISK DRIVER
+                      ;*   EPROM PAGE 0
+                      ;*   05/2024 PH. ROEHR
+
+                      ;* ALL ROUTINES BELOW WILL BE LOCATED IN LOWER PAGE OF I/O BOARD EPROM
+                      ;* EPROM PAGE CAN BE SELECTED WITH LATCH AT $EEB0
+
+                              ORG     $E800
+
+ E800 00                      FCB     $00
+ E801 00                      FCB     $00
+ E802 00                      FCB     $00
+ E803 00                      FCB     $00
+ E804 00                      FCB     $00
+ E805 00                      FCB     $00
+ E806 00                      FCB     $00
+ E807 00                      FCB     $00
+ E808 00                      FCB     $00
+ E809 00                      FCB     $00
+ E80A 00                      FCB     $00
+ E80B 00                      FCB     $00
+ E80C 00                      FCB     $00
+ E80D 00                      FCB     $00
+ E80E 00                      FCB     $00
+ E80F 00                      FCB     $00
+ E810 00                      FCB     $00
+ E811 00                      FCB     $00
+ E812 00                      FCB     $00
+ E813 00                      FCB     $00
+ E814 00                      FCB     $00
+ E815 00                      FCB     $00
+ E816 00                      FCB     $00
+ E817 00                      FCB     $00
+ E818 00                      FCB     $00
+ E819 00                      FCB     $00
+ E81A 00                      FCB     $00
+ E81B 00                      FCB     $00
+ E81C 00                      FCB     $00
+ E81D 00                      FCB     $00
+ E81E 00                      FCB     $00
+ E81F 00                      FCB     $00
+ E820 00                      FCB     $00
+ E821 00                      FCB     $00
+ E822 00                      FCB     $00
+ E823 00                      FCB     $00
+ E824 00                      FCB     $00
+ E825 00                      FCB     $00
+ E826 00                      FCB     $00
+ E827 00                      FCB     $00
+ E828 00                      FCB     $00
+ E829 00                      FCB     $00
+ E82A 00                      FCB     $00
+ E82B 00                      FCB     $00
+ E82C 00                      FCB     $00
+ E82D 00                      FCB     $00
+ E82E 00                      FCB     $00
+ E82F 00                      FCB     $00
+
+                      ;*   THIS ROUTINE PREPARE THE STACK BEFORE PAGE CHANGE
+                      ;*   AT CALL Y MUST BE = TO RETURN ADDRESS AND
+                      ;*   JMPADR SHOULD CONTAIN THE ROUTINE ADDRESS IN THE OTHER PAGE
+
+ E830 3420            CALLRT0 PSHS     Y               ; STORE RETURN ADDRESS (IN PAGE 0)
+ E832 108EE83B                LDY      #CHGPA1         ; PAGE 1 ROUTINES SHOULD COME BACK TO CHGPA1 AFTER RTS
+ E836 3420                    PSHS     Y               ; SO PUT THIS ON STACK
+ E838 10BEDED4                LDY      JMPADR          ; LOAD JUMP ADDRESS ROUTINE
+ E83C 3420                    PSHS     Y
+
+                      ;* ROUTINE CALL FOR OTHER EPROM PAGE
+                      ;* THIS ROUTINE ALWAYS ASSUME THAT WE GO BACK TO PAGE 1
+
+ E83E 3405            CHGPA0  PSHS    B,CC        ; STORE B AND CC
+ E840 C601                    LDB     #$01        ; PREPARE FOR PAGE 1
+                      ;* BEFORE GOING TO PAGE 1 ENABLE IRQ & FIRQ
+ E842 1CAF                    ANDCC   #$AF        ; %10101111
+ E844 F7EEB0                  STB     ROMLATCH    ; SET ROM PAGE 1
+ E847 12                      NOP                 ; WAIT A LITTLE
+                      ;* FOLLOWING INSTRUCTION MUST BE STRICTLY ALIGNED TO THE SAME ADDRESS BETWEEN THE 2 PAGES $E848
+ E848 3525                    PULS    B,CC,Y      ; RESTORE B CC AND ADDRESS TO GO
+ E84A 1F25                    TFR     Y,PC        ; JUMP TO ROUTINE
+
+                      ;*   INITIALISE CF'S CARD WITH TIMEOUT
+                      ;*   IF CF PRESENT READ SIR AND STORE GEOM PARAMETERS
+                      ;*   !! THE CF IS DETECTED BUT NO WARNING IF NOT FORMATTED !!
+
+ E84C 8E00FF          E0INCF  LDX     #$00FF          ; PREPARE FOR TIMEOUT
+ E84F CC00E0                  LDD     #$00E0          ; PREPARE LBA2 & LBA3
+ E852 FDDEB4                  STD     LBA2
+ E855 E69FDEC0        INIT0   LDB     [CFSTATUL]      ; READ THE CF STATUS REGISTER
+ E859 C580                    BITB    #%10000000      ; ISOLATE THE BUSY BIT
+ E85B 2707                    BEQ     INIT1           ; IF BIT CLEAR CF OK CONTINUE
+ E85D 301F                    LEAX    -1,X            ; COUNTDOWN
+ E85F 26F4                    BNE     INIT0           ; NOT FINISH TRY AGAIN
+ E861 1CFB                    ANDCC   #%11111011      ; NO RESPONSE CLEAR Z
+ E863 39                      RTS                     ; THEN RETURN
+ E864 BEDEBE          INIT1   LDX     CFADDRES        ; CF PRESENT PERFORM INIT AND READ GEOM
+ E867 C604                    LDB     #$04            ; RESET THE CF CARD
+ E869 E707                    STB     CFCOMMAND,X
+ E86B BDE8BF                  JSR     CMDWAI0
+ E86E F6DEB5                  LDB     LBA3            ; CLEAR LBA3, SET MASTER & LBA MODE
+ E871 E706                    STB     CFLBA3,X
+ E873 BDE8BF                  JSR     CMDWAI0
+ E876 C681                    LDB     #$81            ; SET 16 BITS BUS WIDTH
+ E878 E701                    STB     CFFEATURE,X
+ E87A BDE8BF                  JSR     CMDWAI0
+ E87D C601                    LDB     #$01            ; READ ONLY ONE SECTOR AT A TIME
+ E87F E702                    STB     CFSECCNT,X
+ E881 BDE8BF                  JSR     CMDWAI0
+ E884 C6EF                    LDB     #$EF            ; ENABLE FEATURES
+ E886 E707                    STB     CFCOMMAND,X
+ E888 BDE8BF                  JSR     CMDWAI0
+ E88B 8D22                    BSR     CFERR0
+ E88D 261F                    BNE     ENDINIT         ; CF NOT OK - RETURN WITH Z CLEAR
+ E88F CC0200                  LDD     #$0200          ; READ SIR - SIR LBA0-LBA1 NUMBERS
+ E892 FDDEB2                  STD     LBA0            ; SO LBA IS SET TO E0-00-00-02
+ E895 8EEA00                  LDX     #CFBUFF         ; A TEMPORARY PLACE TO PUT THE DATA
+                      ;* E1RDB01 READ SECTOR ROUTINE CALL ON EPROM PAGE 1
+ E898 108EE8F9                LDY     #E1RDBO1        ; GO TO READ SECTOR IN OTHER EPROM PAGE
+ E89C 10BFDED4                STY     JMPADR          ; STORE ROUTINE ADDRESS IN RAM
+ E8A0 108EE8A6                LDY     #*+6            ; LOAD A RETURN ADDRESS
+ E8A4 208A                    BRA     CALLRT0         ; GO TO PREPARE STACK AND JUMP
+                      ;* END ROUTINE CALL
+ E8A6 EC8826                  LDD     38,X            ; LOAD CF MAX TRK & SEC PARAMS FROM BUFFER
+ E8A9 FDDEB8                  STD     CFMTRK          ; STORE INTO TABLE
+ E8AC 1A04                    ORCC    #%00000100      ; CF PRESENT AND OK SET Z
+ E8AE 39              ENDINIT RTS                     ; RETURN WITH Z SET IF ALL OK
+
+                      ;*   ERROR INITIALIZING THE CF CARD (B0 SET IF ERROR)
+                      ;*   RETURN WITH Z CLEAR IF ERROR
+
+ E8AF E69FDEC0        CFERR0  LDB     [CFSTATUL]      ; READ THE STATUS REGISTER
+ E8B3 C501                    BITB    #%00000001      ; THEN ISOLATE THE ERROR BIT B0
+ E8B5 39                      RTS                     ; RETURN WITH Z SET IF NO ERROR
+
+                      ;*   WAIT FOR CF CARD NOT BUSY
+                      ;*   CHECK FOR BSY = 0 (BIT 7)
+
+ E8B6 E69FDEC0        DATWAI0 LDB     [CFSTATUL]      ; READ THE STATUS REGISTER
+ E8BA C580                    BITB    #%10000000      ; ISOLATE THE BUSY BIT
+ E8BC 26F8                    BNE     DATWAI0         ; WAIT BUSY BIT CLEAR
+ E8BE 39                      RTS
+
+                      ;*   WAIT FOR CF CARD READY
+                      ;*   CHECK FOR BSY = 0 (BIT 7) THEN FOR RDY = 1 (BIT 6)
+
+ E8BF 8DF5            CMDWAI0 BSR     DATWAI0         ; CHECK BSY NOT SET
+ E8C1 E69FDEC0        CMD10   LDB     [CFSTATUL]      ; READ THE STATUS REGISTER
+ E8C5 C540                    BITB    #%01000000      ; ISOLATE READY BIT - READY IF B6=1
+ E8C7 27F8                    BEQ     CMD10           ; WAIT READY BIT SET
+ E8C9 39                      RTS
+
+                      ;*   LOAD CF BOOT SECTOR AND JUMP
+
+ E8CA 7FDEB0          E0CFBT  CLR     CFOK                    ; CLEAR CF PRESENT FLAG
+ E8CD 5F                      CLRB                            ; PREPARE FOR FLOPPY 6 MS STEP RATE
+ E8CE BDF01E                  JSR     EINITAB                 ; PREPARE PARAMS & TABLE FOR FLOPPY OPERATIONS IN ESS540
+ E8D1 BDE92F                  JSR     E0CHKCF                 ; CHECK AND INIT CF 1 & 2
+ E8D4 7DDEB0                  TST     CFOK
+ E8D7 2730                    BEQ     REBOOT                  ; NO CF 1 FOUND AT INIT - REBOOT
+ E8D9 8EC100                  LDX     #CMDAD1
+ E8DC CC0000                  LDD     #$0000                  ; PREPARE FOR TR0S1 (LBA 0000)
+ E8DF FDDEB2                  STD     LBA0
+ E8E2 ED8901FE                STD     $01FE,X                 ; STORE SOMETHING WHERE THE 'FLEX' STRING
+ E8E6 ED8900FE                STD     $00FE,X                 ; SHOULD BE FOUND AFTER TR0S1 AND TR0S2 READ
+ E8EA 8D21                    BSR     CHKFLX
+ E8EC 261B                    BNE     REBOOT                  ; NO 'FLEX' STRING AT END OF TR0S1 - REBOOT
+ E8EE 8EC200                  LDX     #CMDAD2
+ E8F1 CC0100                  LDD     #$0100                  ; PREPARE FOR TR0S2
+ E8F4 FDDEB2                  STD     LBA0
+ E8F7 8D14                    BSR     CHKFLX
+ E8F9 2607                    BNE     JMP1                    ; NO 'FLEX' STRING AT END OF TR0S2 - GO TO CMDAD1
+ E8FB 10CEC080                LDS     #INPBUF
+ E8FF 7EC200                  JMP     CMDAD2                  ; BOOT LAY ON 2 SECTORS - GO TO CMDAD2
+ E902 10CEC080        JMP1    LDS     #INPBUF
+ E906 7EC100                  JMP     CMDAD1
+ E909 6E9FFFFE        REBOOT  JMP     [RESET]                 ; NO CF OR NO 'FLEX' STRING FOUND - RESET
+
+                      ;* LOAD TRACK AND CHECK 'FLEX' IS IN MEMORY - RETURN Z=0 IF NOT FOUND
+
+                      ;* E1RDB01 READ SECTOR ROUTINE CALL ON EPROM PAGE 1
+ E90D 108EE8F9        CHKFLX  LDY     #E1RDBO1                ; GO TO READ SECTOR IN OTHER EPROM PAGE
+ E911 10BFDED4                STY     JMPADR                  ; STORE ROUTINE ADDRESS IN RAM
+ E915 108EE91C                LDY     #*+7                    ; LOAD A RETURN ADDRESS
+ E919 7EE830                  JMP     CALLRT0                 ; GO TO PREPARE STACK AND JUMP
+                      ;* END ROUTINE CALL
+ E91C EC8900FE                LDD     $00FE,X
+ E920 10834558                CMPD    #$4558                  ; COMPARE TO 'EX'
+ E924 2608                    BNE     ENDCKFX
+ E926 EC8900FC                LDD     $00FC,X
+ E92A 1083464C                CMPD    #$464C                  ; COMPARE TO 'FL'
+ E92E 39              ENDCKFX RTS
+
+                      ;*   CHECK IF CF 1 & 2 PRESENT
+                      ;*   CFOK=0 IF NO CF - CFOK=1 IF ONLY CF 1 PRESENT - CFOK=2 IF CF 1 & 2 PRESENT
+
+ E92F 7FDEB0          E0CHKCF CLR     CFOK
+ E932 8D21                    BSR     E0SCF1
+ E934 BDE84C                  JSR     E0INCF
+ E937 261B                    BNE     ENDCHK          ; TEST Z SET CF 1 PRESENT - IF NOT DONT CHECK FOR CF 2
+ E939 FCDEB8                  LDD     CFMTRK          ; STORE CF 1 PARAMETERS IN TABLE
+ E93C FDDEBA                  STD     CF1MTRK
+ E93F 7CDEB0                  INC     CFOK            ; CF 1 PRESENT INC CFOK TO 1
+ E942 8D1B                    BSR     E0SCF2          ; TEST IF CF 2 PRESENT
+ E944 BDE84C                  JSR     E0INCF
+ E947 2609                    BNE     PRPCF1          ; IF NOT PRESENT JUST PREPARE FOR CF 1 & RETURN
+ E949 FCDEB8                  LDD     CFMTRK          ; STORE CF 2 PARAMETERS IN TABLE
+ E94C FDDEBC                  STD     CF2MTRK
+ E94F 7CDEB0                  INC     CFOK            ; CF 2 IS PRESENT INC CFOK TO 2
+ E952 8D01            PRPCF1  BSR     E0SCF1          ; AFTER INIT PREPARE TABLE FOR CF 1 TO BE READY FOR BOOT FROM
+ E954 39              ENDCHK  RTS
+
+                      ;*   SET CF 1 PARAMETERS
+
+ E955 3416            E0SCF1  PSHS    A,B,X
+ E957 8EEE80                  LDX     #CF1ADDRES
+ E95A FCDEBA                  LDD     CF1MTRK
+ E95D 2008                    BRA     STORCF
+
+                      ;*   SET CF 2 PARAMETERS
+
+ E95F 3416            E0SCF2  PSHS    A,B,X
+ E961 8EEEF0                  LDX     #CF2ADDRES
+ E964 FCDEBC                  LDD     CF2MTRK
+
+                      ;*   AND STORE IN TABLE
+
+ E967 BFDEBE          STORCF  STX     CFADDRES        ; SET CF ADDRESS FOR CF
+ E96A FDDEB8                  STD     CFMTRK          ; STORE TRACK & SECTOR FOR CF
+ E96D 8607                    LDA     #CFSTATUS       ; COMPUTE STATUS LONG ADDRESS FOR CF
+ E96F 3086                    LEAX    A,X
+ E971 BFDEC0                  STX     CFSTATUL        ; STORE
+ E974 3596                    PULS    A,B,X,PC        ; RETURN
+
+                      ;* MOVE DISK DRIVER JUMP TABLE
+                      ;* X = ADDRESS OF TABLE TO BE MOVED
+                      ;* Y = DESTINATION ADDRESS
+
+ E976 3402            E0MVT   PSHS    A
+ E978 EC81            E0MVT1  LDD     ,X++        ; CHANGE READ/WRITE/VERIF
+ E97A EDA4                    STD     ,Y
+ E97C 3123                    LEAY    3,Y
+ E97E 108CDE0A                CMPY    #DREAD+(3*3)+1
+ E982 26F4                    BNE     E0MVT1
+ E984 EC84                    LDD     ,X          ; CHANGE SEEK
+ E986 EDA812                  STD     18,Y
+ E989 3582                    PULS    A,PC
+
+                      ;*   DRIVE   THE SPECIFIED DRIVE IS TO BE SELECTED. THE DRIVE IS SPECIFIED
+                      ;*           IN THE FCB POINTED TO BY THE CONTENTS OF THE X REGISTER. NOTE
+                      ;*           THAT THE DRIVE NUMBER IS THE 4TH BYTE OF THE FCB.
+
+                      ;*           ENTRY - (X) = FCB ADDRESS (3,X CONTAINS DRIVE NUMBER)
+
+                      ;*           EXIT -  (X) MAY BE DESTROYED
+                      ;*                   (A) MAY BE DESTROYED
+                      ;*                   (B) = $0F IF NON-EXISTENT DRIVE
+                      ;*                       = ERROR CONDITION OTHERWISE
+                      ;*                   (Z) = 1 IF NO ERROR
+                      ;*                       = 0 IF AN ERROR
+                      ;*                   (C) = 0 IF NO ERROR
+                      ;*                       = 1 IF AN ERROR
+
+ E98B 3476            E0DRV   PSHS    U,X,Y,A,B
+ E98D 108EDE01                LDY     #DREAD+1
+ E991 8D33                    BSR     E0TSTCF
+ E993 270D                    BEQ     CF
+                      ;* FLOPPY CASE
+ E995 8EDEC4                  LDX     #FLTAB          ; MOVE JUMP TABLE FOR FLOPPY OPERATIONS
+ E998 8DDC                    BSR     E0MVT
+ E99A CEDE80                  LDU     #DSKTAB
+ E99D BDF012                  JSR     EDRSEL          ; JUMP TO ESS540 EPROM
+ E9A0 2022                    BRA     ENDDRV
+                      ;* COMPACT FLASH CASE
+ E9A2 7DDEB0          CF      TST     CFOK            ; CHECK IF CF PRESENT
+ E9A5 2719                    BEQ     NOCF            ; CF NOT PRESENT - GO TO SET ERROR
+ E9A7 8103                    CMPA    #CFDSKNB2       ; IS CF 2 ASKED (DISK 3) ?
+ E9A9 260B                    BNE     CF1             ; NO THEN ITS CF 1 (DISK 2)
+ E9AB B6DEB0                  LDA     CFOK
+ E9AE 8102                    CMPA    #$02            ; IF CF 2 ASKED CHECK IF PRESENT (CFOK = 2 ?)
+ E9B0 260E                    BNE     NOCF            ; IF NOT SET ERROR DISK NOT PRESENT
+ E9B2 8DAB                    BSR     E0SCF2          ; SET CF 2 PARAMETERS
+ E9B4 2002                    BRA     ENDCF
+ E9B6 8D9D            CF1     BSR     E0SCF1          ; SET CF 1 PARAMETERS
+ E9B8 8EDECC          ENDCF   LDX     #CFTAB          ; MOVE TABLE FOR CF OPERATIONS
+ E9BB 8DB9                    BSR     E0MVT
+ E9BD 5F                      CLRB                    ; CLEAR B SET Z CLEAR C
+ E9BE 2004                    BRA     ENDDRV
+                      ;* COMPACT FLASH ASKED BUT NOT PRESENT
+ E9C0 C60F            NOCF    LDB     #$0F            ; SET ERROR FOR NON EXISTENT DRIVE - CLEAR Z
+ E9C2 1A01                    ORCC    #$01            ; ERROR - MUST SET C=1
+ E9C4 35F6            ENDDRV  PULS    U,X,Y,A,B,PC
+
+                      ;* TEST IF DISK NUMBER STORED AT 3,X IS CF1 (DISK 3) OR CF2 (DISK 2)
+                      ;* RETURN Z=1 IF YES
+                      ;* RETURN A=DISK
+
+ E9C6 A603            E0TSTCF LDA     3,X
+ E9C8 8103                    CMPA    #CFDSKNB2       ; CHECK IF CF 2 REQUIRED
+ E9CA 2702                    BEQ     E0ENDTS         ; IF YES TEST FINISHED, RETURN
+ E9CC 8102                    CMPA    #CFDSKNB1       ; IF NOT CF 2 TEST IF CF 1
+ E9CE 39              E0ENDTS RTS
+
+                      ;* FILL WITH $00 TO END OF PAGE
+
+ E9CF 00                      FCB    $00
+ E9D0 00                      FCB    $00
+ E9D1 00                      FCB    $00
+ E9D2 00                      FCB    $00
+ E9D3 00                      FCB    $00
+ E9D4 00                      FCB    $00
+ E9D5 00                      FCB    $00
+ E9D6 00                      FCB    $00
+ E9D7 00                      FCB    $00
+ E9D8 00                      FCB    $00
+ E9D9 00                      FCB    $00
+ E9DA 00                      FCB    $00
+ E9DB 00                      FCB    $00
+ E9DC 00                      FCB    $00
+ E9DD 00                      FCB    $00
+ E9DE 00                      FCB    $00
+ E9DF 00                      FCB    $00
+ E9E0 00                      FCB    $00
+ E9E1 00                      FCB    $00
+ E9E2 00                      FCB    $00
+ E9E3 00                      FCB    $00
+ E9E4 00                      FCB    $00
+ E9E5 00                      FCB    $00
+ E9E6 00                      FCB    $00
+ E9E7 00                      FCB    $00
+ E9E8 00                      FCB    $00
+ E9E9 00                      FCB    $00
+ E9EA 00                      FCB    $00
+ E9EB 00                      FCB    $00
+ E9EC 00                      FCB    $00
+ E9ED 00                      FCB    $00
+ E9EE 00                      FCB    $00
+ E9EF 00                      FCB    $00
+ E9F0 00                      FCB    $00
+ E9F1 00                      FCB    $00
+ E9F2 00                      FCB    $00
+ E9F3 00                      FCB    $00
+ E9F4 00                      FCB    $00
+ E9F5 00                      FCB    $00
+ E9F6 00                      FCB    $00
+ E9F7 00                      FCB    $00
+ E9F8 00                      FCB    $00
+ E9F9 00                      FCB    $00
+ E9FA 00                      FCB    $00
+ E9FB 00                      FCB    $00
+ E9FC 00                      FCB    $00
+ E9FD 00                      FCB    $00
+ E9FE 00                      FCB    $00
+ E9FF 00                      FCB    $00
+
+
+                      ;* ---------------------------------------------------------------------
+                      ;* ---------------------------------------------------------------------
+                      ;* ---------------------------------------------------------------------
+
+
+                      ;*   ELEKTOR EC6809 DISK DRIVER
+                      ;*   EPROM PAGE 1
+                      ;*   08/2024 PH. ROEHR
+
+                      ;* ALL ROUTINES BELOW WILL BE LOCATED IN PAGE 1 OF I/O BOARD EPROM
+                      ;* EPROM PAGE CAN BE SELECTED WITH LATCH LOCATED AT $EEB0
+                      ;* THESE ROUTINES WILL BE EXECUTED RELOCATED AT $E800
+
+ FE00                         PHASE   $E800
+
+                      ;* JUMP TABLE INTO EPROM ROUTINES
+                      ;* WITH THIS TABLE WE CAN USE FIXED ADDRESSES FOR ROUTINES CALL
+                      ;* FROM OUTSIDE OF THE EPROM EVEN IN CASE OF MODIFICATIONS
+                      ;* NOT ALL ROUTINES ARE LISTED HERE, ONLY USEFULL ONES
+
+ E800 7EE84C          SEEK    JMP     E1SEEK
+ E803 7EE856          READ    JMP     E1READ
+ E806 7EE863          WRITE   JMP     E1WRIT
+ E809 7EE870          VERIF   JMP     E1VERIF
+ E80C 7EE87D          RST     JMP     E1RST
+ E80F 7EE890          DRV     JMP     E1DRV
+ E812 7EE8A8          CHKRDY  JMP     E1CHRDY
+ E815 7EE8C0          QUICK   JMP     E1QUICK
+ E818 7EE9B2          CHKCF   JMP     E1CHKCF
+ E81B 7EE8EE          RDCFSEC JMP     E1RSEC
+ E81E 7EE937          WRCFSEC JMP     E1WSEC
+ E821 7EE969          CFSEEK  JMP     E1CFSEK
+ E824 7EE96C          CFVRFY  JMP     E1CFVRY
+ E827 7EE9C2          CFBOOT  JMP     E1CFBT
+ E82A 7EE8F6          RDBOOT  JMP     E1RDBOT
+
+                      ;*   THIS ROUTINE PREPARE THE STACK BEFORE PAGE CHANGE
+                      ;*   AT CALL Y MUST BE = TO RETURN ADDRESS AND
+                      ;*   JMPADR SHOULD CONTAIN THE ROUTINE ADDRESS TO GO IN THE OTHER PAGE
+
+ E82D 3420            CALLRT1 PSHS     Y          ; STORE RETURN ADDRESS (IN PAGE 1)
+ E82F 108EE83E                LDY      #CHGPA0    ; PAGE 0 ROUTINES SHOULD COME BACK TO CHGPA0 AFTER RTS
+ E833 3420                    PSHS     Y          ; SO PUT THIS ON STACK
+ E835 10BEDED4                LDY      JMPADR     ; LOAD JUMP ADDRESS ROUTINE (IN PAGE 0)
+ E839 3420                    PSHS     Y
+
+                      ;*   ROUTINE CALL FOR OTHER PAGE
+                      ;*   THIS ROUTINE ALWAYS ASSUME THAT WE GO TO PAGE 0
+
+ E83B 3405            CHGPA1  PSHS    B,CC        ; STORE B AND CC
+ E83D C600                    LDB     #$00        ; PREPARE FOR PAGE 0
+                      ;* CHECK IF AND PROCESS BATCH PRINTING
+ E83F BDE8D1                  JSR     INTER
+                      ;* BEFORE GOING TO PAGE 0 DISABLE IRQ & FIRQ
+ E842 1A50                    ORCC    #$50        ; %01010000
+ E844 F7EEB0                  STB     ROMLATCH    ; SET ROM PAGE 0
+ E847 12                      NOP                 ; WAIT A LITLLE
+                      ;* FOLLOWING INSTRUCTION MUST BE STRICTLY ALIGNED TO THE SAME ADDRESS BETWEEN THE 2 PAGES $E848
+ E848 3525                    PULS    B,CC,Y      ; RESTORE B CC AND ADDRESS TO GO
+ E84A 1F25                    TFR     Y,PC        ; JUMP TO ROUTINE
+
+                      ;*   SEEK    SEEKS TO THE TRACK SPECIFIED IN THE 'A' ACCUMULATOR. IN
+                      ;*           DOUBLE-SIDED SYSTEMS, THIS ROUTINE SHOULD ALSO SELECT THE
+                      ;*           CORRECT SIDE DEPENDING ON THE SECTOR NUMBER SUPPLIED IN 'B'.
+                      ;*
+                      ;*           ENTRY - (A) = TRACK NUMBER
+                      ;*                   (B) = SECTOR NUMBER
+                      ;*
+                      ;*           EXIT -  (X) MAY BE DESTROYED (SEE TEXT)
+                      ;*                   (A) MAY BE DESTROYED (SEE TEXT)
+                      ;*                   (B) = ERROR CONDITION
+                      ;*                   (Z) = 1 IF NO ERROR
+                      ;*                       = 0 IF AN ERROR
+
+ E84C 3460            E1SEEK  PSHS    U,Y
+ E84E CEDE80                  LDU     #DSKTAB
+ E851 BDF003                  JSR     ESEEK       ; JUMP TO ESS540 EPROM
+ E854 35E0                    PULS    U,Y,PC
+
+                      ;*   READ    THIS ROUTINE READS THE SPECIFIED SECTOR INTO MEMORY AT THE
+                      ;*           SPECIFIED ADDRESS. THIS ROUTINE SHOULD PERFORM A SEEK
+                      ;*           OPERATION IF NECESSARY. A SECTOR IS 256 BYTES IN LENGTH.
+                      ;*
+                      ;*           ENTRY - (X) = ADDRESS IN MEMORY WHERE SECTOR IS TO BE PLACED.
+                      ;*                   (A) = TRACK NUMBER
+                      ;*                   (B) = SECTOR NUMBER
+                      ;*
+                      ;*           EXIT -  (X) MAY BE DESTROYED
+                      ;*                   (A) MAY BE DESTROYED
+                      ;*                   (B) = ERROR CONDITION
+                      ;*                   (Z) = 1 IF NO ERROR
+                      ;*                       = 0 IF AN ERROR
+
+ E856 3460            E1READ  PSHS    U,Y
+ E858 BDE8D1                  JSR    INTER
+ E85B CEDE80                  LDU     #DSKTAB
+ E85E BDF006                  JSR     EREAD       ; JUMP TO ESS540 EPROM
+ E861 35E0                    PULS    U,Y,PC
+
+                      ;*   WRITE   THIS ROUTINE WRITES THE INFORMATION FROM THE SPECIFED MEMORY
+                      ;*           BUFFER AREA TO THE DISK SECTOR SPECIFIED. THIS ROUTINE SHOULD
+                      ;*           PERFORM A SEEK OPERATION IF NECESSARY. A SECTOR IS 256 BYTES
+                      ;*           IN LENGTH.
+                      ;*
+                      ;*           ENTRY - (X) = ADDRESS OF 256 BYTES MEMORY BUFFER CONTAINING
+                      ;*                         DATA TO BE WRITTEN TO DISK
+                      ;*                   (A) = TRACK NUMBER
+                      ;*                   (B) = SECTOR NUMBER
+                      ;*
+                      ;*           EXIT -  (X) MAY BE DESTROYED
+                      ;*                   (A) MAY BE DESTROYED
+                      ;*                   (B) = ERROR CONDITION
+                      ;*                   (Z) = 1 IF NO ERROR
+                      ;*                       = 0 IF AN ERROR
+
+ E863 3460            E1WRIT  PSHS    U,Y
+ E865 BDE8D1                  JSR     INTER
+ E868 CEDE80                  LDU     #DSKTAB
+ E86B BDF009                  JSR     EWRITE      ; JUMP TO ESS540 EPROM
+ E86E 35E0                    PULS    U,Y,PC
+
+                      ;*   VERIFY  THE SECTOR JUST WRITTEN TO THE DISK IS TO BE VERIFIED TO
+                      ;*           DETERMINE IF THERE ARE CRC ERRORS. NO SEEK IS REQUIRED AS
+                      ;*           THIS ROUTINE WILL ONLY BE CALLED IMMEDIATELY AFTER A WRITE
+                      ;*           SINGLE SECTOR OPERATION.
+                      ;*
+                      ;*           ENTRY - NO ENTRY PARAMETERS
+                      ;*
+                      ;*           EXIT -  (X) MAY BE DESTROYED
+                      ;*                   (A) MAY BE DESTROYED
+                      ;*                   (B) = ERROR CONDITION
+                      ;*                   (Z) = 1 IF NO ERROR
+                      ;*                       = 0 IF AN ERROR
+
+ E870 3462            E1VERIF PSHS    A,U,Y
+ E872 BDE8D1                  JSR     INTER
+ E875 CEDE80                  LDU     #DSKTAB
+ E878 BDF015                  JSR     EVERIF      ; JUMP TO ESS540 EPROM
+ E87B 35E2                    PULS    A,U,Y,PC
+
+                      ;*   RESTORE A RESTORE OPERATION (ALSO KNOWN AS A "SEEK TO TRACK 00") IS TO
+                      ;*           BE PERFORMED ON THE SPECIFIED DRIVE. THE DRIVE IS SPECIFIED
+                      ;*           IN THE FCB POINTED TO BY THE CONTENTS OF THE X REGISTER. NOTE
+                      ;*           THAT THE DRIVE NUMBER IS THE 4TH BYTE OF THE FCB. THIS
+                      ;*           ROUTINE SHOULD SELECT THE DRIVE BEFORE EXECUTING THE RESTORE
+                      ;*           OPERATION.
+
+                      ;*           ENTRY - (X) = FCB ADDRESS (3,X CONTAINS DRIVE NUMBER)
+
+                      ;*           EXIT -  (X) MAY BE DESTROYED
+                      ;*                   (A) MAY BE DESTROYED
+                      ;*                   (B) = ERROR CONDITION
+                      ;*                   (Z) = 1 IF NO ERROR
+                      ;*                       = 0 IF AN ERROR
+
+ E87D 8D11            E1RST   BSR     E1DRV           ; MAKE DRIVE SELECT
+ E87F 8D1E                    BSR     E1TSTCF
+ E881 2601                    BNE     RSTFLP
+ E883 39                      RTS                     ; RETURN
+ E884 3460            RSTFLP  PSHS    U,Y             ; FLOPPY SELECTED NOW DO RESTORE
+ E886 CEDE80                  LDU     #DSKTAB
+ E889 A603                    LDA     3,X
+ E88B BDF00F                  JSR     ERESTO          ; JUMP TO ESS540 EPROM
+ E88E 35E0                    PULS    U,Y,PC
+
+                      ;*   DRIVE   THE SPECIFIED DRIVE IS TO BE SELECTED. THE DRIVE IS SPECIFIED
+                      ;*           IN THE FCB POINTED TO BY THE CONTENTS OF THE X REGISTER. NOTE
+                      ;*           THAT THE DRIVE NUMBER IS THE 4TH BYTE OF THE FCB.
+
+                      ;*           ENTRY - (X) = FCB ADDRESS (3,X CONTAINS DRIVE NUMBER)
+
+                      ;*           EXIT -  (X) MAY BE DESTROYED
+                      ;*                   (A) MAY BE DESTROYED
+                      ;*                   (B) = $0F IF NON-EXISTENT DRIVE
+                      ;*                       = ERROR CONDITION OTHERWISE
+                      ;*                   (Z) = 1 IF NO ERROR
+                      ;*                       = 0 IF AN ERROR
+                      ;*                   (C) = 0 IF NO ERROR
+                      ;*                       = 1 IF AN ERROR
+                      ;*
+                      ;* ROUTINE LOCATED IN PAGE 0
+                      ;*
+
+ E890 108EE98B        E1DRV   LDY      #E0DRV         ; LOAD JUMP ADDRESS
+ E894 10BFDED4                STY      JMPADR         ; STORE
+ E898 108EE89E                LDY      #*+6           ; PREPARE A RETURN ADDRESS - RTS JUST BELOW
+ E89C 208F                    BRA      CALLRT1        ; GO TO PREPARE STACK AND JUMP
+ E89E 39                      RTS
+
+                      ;* TEST IF DISK NUMBER STORED AT 3,X IS CF1 (DISK 3) OR CF2 (DISK 2)
+                      ;* RETURN Z=1 IF YES
+                      ;* RETURN A=DISK
+
+ E89F A603            E1TSTCF LDA     3,X
+ E8A1 8103                    CMPA    #CFDSKNB2       ; CHECK IF CF 2 REQUIRED
+ E8A3 2702                    BEQ     ENDTST          ; IF YES TEST FINISHED, RETURN
+ E8A5 8102                    CMPA    #CFDSKNB1       ; IF NOT CF 2 TEST IF CF 1
+ E8A7 39              ENDTST  RTS
+
+                      ;*   CHKRDY  CHECK FOR A DRIVE READY CONDITION. THE DRIVE NUMBER IS FOUND
+                      ;*           IN THE SPECIFIED FCB (AT 3,X). IF THE USER'S CONTROLLER TURNS
+                      ;*           THE DRIVE MOTORS OFF AFTER SOME TIME DELAY, THIS ROUTINE
+                      ;*           SHOULD FIRST CHECK FOR A DRIVE READY CONDITION AND IF IT IS
+                      ;*           NOT READY, SHOULD DELAY LONG ENOUGH FOR THE MOTORS TO COME UP
+                      ;*           TO SPEED, THEN CHECK AGAIN. THIS DELAY SHOULD BE DONE ONLY IF
+                      ;*           NOT READY ON THE FIRST TRY AND ONLY IF NECESSARY FOR THE
+                      ;*           PARTICULAR DRIVES AND CONTROLLER! IF THE HARDWARE ALWAYS
+                      ;*           LEAVES THE DRIVE MOTORS ON, THIS ROUTINE SHOULD PERFORM A
+                      ;*           SINGLE CHECK FOR DRIVE READY AND IMMEDIATELY RETURN THE
+                      ;*           RESULTING STATUS. SYSTEMS WHICH DO NOT HAVE THE ABILITY TO
+                      ;*           CHECK FOR A DRIVE READY CONDITION SHOULD SIMPLY ALWAYS RETURN
+                      ;*           A READY STATUS IF THE DRIVE NUMBER IS VALID.
+
+                      ;*           ENTRY - (X) = FCB ADDRESS (3,X CONTAINS DRIVE NUMBER)
+
+                      ;*           EXIT -  (X) MAY BE DESTROYED
+                      ;*                   (A) MAY BE DESTROYED
+                      ;*                   (B) = ERROR CONDITION
+                      ;*                   (Z) = 1 IF DRIVE READY
+                      ;*                       = 0 IF NOT READY
+                      ;*                   (C) = 0 IF DRIVE READY
+                      ;*                       = 1 IF NOT READY
+
+ E8A8 8DF5            E1CHRDY BSR     E1TSTCF
+ E8AA 2602                    BNE     FLP        ; NO CONTINUE AS FLOPPY
+ E8AC 202C                    BRA     E1CFRDY
+ E8AE 8101            FLP     CMPA    #$01       ; CHECK DRIVE 0 -> 1
+ E8B0 2302                    BLS     TEST       ; IF DRIVE NUMBER OK MAKE A DELAY
+ E8B2 2016                    BRA     NRDY       ; IF NOT GOTO ERROR CODE SET AND RETURN
+                      ;*  MAKE A LONG DELAY
+ E8B4 8E0FFF          TEST    LDX     #$0FFF
+ E8B7 BDF206          TEST1   JSR     ETEMPO
+ E8BA 301F                    LEAX    -1,X
+ E8BC 26F9                    BNE     TEST1
+ E8BE 200F                    BRA     OK         ; END OF DELAY JUMP TO CLRB AND RETURN
+
+                      ;*   QUICK   THIS ROUTINE PERFORMS A "QUICK" DRIVE READY CHECK. ITS
+                      ;*           FUNCTION IS EXACTLY LIKE THE CHKRDY ROUTINE ABOVE EXCEPT THAT
+                      ;*           NO DELAY SHOULD BE DONE. IF THE DRIVE DOES NOT GIVE A READY
+                      ;*           CONDITION ON THE FIRST CHECK, A NOT READY CONDITION IS
+                      ;*           IMMEDIATELY RETURNED. ENTRY AND EXIT ARE AS ABOVE.
+
+ E8C0 8DDD            E1QUICK BSR     E1TSTCF
+ E8C2 2602                    BNE     QFLP       ; NO CONTINUE AS FLOPPY
+ E8C4 2014                    BRA     E1CFRDY    ; GOTO CF READY ROUTINE
+ E8C6 8101            QFLP    CMPA    #$01       ; CHECK DRIVE 0 -> 1
+ E8C8 2305                    BLS     OK
+ E8CA C680            NRDY    LDB     #$80       ; LOAD CODE ERROR AND CLEAR Z
+ E8CC 1A01                    ORCC    #$01       ; SET C
+ E8CE 39                      RTS
+ E8CF 5F              OK      CLRB               ; ASSUME READY - SET Z - CLEAR C
+ E8D0 39                      RTS
+
+                      ;* INTERRUPT MANAGEMENT
+
+ E8D1 7DCC34          INTER   TST     PRCNT       ; TEST IF PRINTER RUN
+ E8D4 2703                    BEQ     ENDINT
+ E8D6 113F                    SWI3                ; GOTO PROCESS SWITCH ROUTINE
+ E8D8 12                      NOP
+ E8D9 39              ENDINT  RTS
+
+                      ;* CF READY CHECK
+                      ;* RETURN WITH B= ERROR CODE AND Z=0 AND C=1 IF CF NOT PRESENT
+
+ E8DA 7DDEB0          E1CFRDY TST     CFOK       ; TEST IF CF PRESENT
+ E8DD 27EB                    BEQ     NRDY       ; IF NOT GOTO ERROR CODE SET AND RETURN
+ E8DF A603                    LDA     3,X
+ E8E1 8103                    CMPA    #CFDSKNB2  ; IS DISK 3 ASKED ?
+ E8E3 26EA                    BNE     OK         ; NO THEN ITS DISK 2 AND GO DO DRV READY
+ E8E5 F6DEB0                  LDB     CFOK       ; DISK 3 IS ASKED SO CFOK MUST BE SET TO 2 ?
+ E8E8 C102                    CMPB    #02
+ E8EA 27E3                    BEQ     OK         ; IF YES OK
+ E8EC 20DC                    BRA     NRDY       ; CF 3 ASKED BUT CFOK NOT SET TO 2 - DRV NOT READY
+
+                      ;* READ A BLOCK OF DATA FROM THE CF CARD TO MEMORY
+                      ;* X = BUFFER BEGIN ADDRESS
+                      ;* A = TRACK NUMBER
+                      ;* B = SECTOR NUMBER
+
+ E8EE FDDEB6          E1RSEC   STD     CFTRK
+ E8F1 8DDE                     BSR     INTER
+ E8F3 8D01                     BSR     E1RDBOT
+ E8F5 39                       RTS
+
+                      ;* READ A BLOCK OF DATA FROM THE CF CARD TO MEMORY
+                      ;* WITHOUT ANY REFERENCE TO FLEX
+                      ;* LOOP UNTIL THE DRQ BIT = 0 (B3)
+                      ;* CF BLOCK IS 512 BYTES - $00 INSERTED AS EACH ODD POSITION
+                      ;* X = BUFFER BEGIN ADDRESS
+                      ;* USE LBA NUMBERS STORED AT #LBA0 - ROUTINE ENTRY = E1RDBO1
+                      ;* COMPUTE LBA WITH #CFTRK - ROUTINE ENTRY = E1RDBOT
+
+ E8F6 BDE992          E1RDBOT JSR     COMPLBA
+ E8F9 3470            E1RDBO1 PSHS    U,X,Y               ; ENTRY WITH LBA READY AT #LBA0
+ E8FB 1A50                    ORCC    #$50                ; DISABLE IRQ
+ E8FD BDE96E                  JSR     SETLBA
+ E900 108E0000                LDY     #$0000
+ E904 8D26                    BSR     CMDWAI1
+ E906 C620                    LDB     #$20                ; SEND READ COMMAND TO THE CF CARD
+ E908 E79FDEC0                STB     [CFSTATUL]
+ E90C 8D15                    BSR     DATWAI1
+ E90E E69FDEBE        RDBOL1  LDB     [CFADDRES]          ; READ THE DATA BYTE (ONLY D0-D7)
+ E912 E780                    STB     ,X+                 ; WRITE DATA TO BUFFER
+ E914 8D0D                    BSR     DATWAI1
+ E916 E69FDEC0                LDB     [CFSTATUL]
+ E91A C508                    BITB    #$08                ; CHECK IF CF SAY READ FINISHED
+ E91C 26F0                    BNE     RDBOL1
+ E91E 5F                      CLRB                        ; NO ERROR CODE SET Z CLEAR C
+ E91F 1CAF                    ANDCC   #$AF                ; ENABLE IRQ
+ E921 35F0                    PULS    U,X,Y,PC            ; RETURN WITH Z=1
+
+                      ;*   WAIT FOR CF CARD NOT BUSY
+                      ;*   CHECK FOR BSY = 0 (BIT 7)
+
+ E923 E69FDEC0        DATWAI1 LDB     [CFSTATUL]      ; READ THE STATUS REGISTER
+ E927 C580                    BITB    #%10000000      ; ISOLATE THE BUSY BIT
+ E929 26F8                    BNE     DATWAI1         ; WAIT BUSY BIT CLEAR
+ E92B 39                      RTS
+
+                      ;*   WAIT FOR CF CARD READY
+                      ;*   CHECK FOR BSY = 0 (BIT 7) THEN FOR RDY = 1 (BIT 6)
+
+ E92C 8DF5            CMDWAI1 BSR     DATWAI1         ; CHECK BSY NOT SET
+ E92E E69FDEC0        CMD11   LDB     [CFSTATUL]      ; READ THE STATUS REGISTER
+ E932 C540                    BITB    #%01000000      ; ISOLATE READY BIT - READY IF B6=1
+ E934 27F8                    BEQ     CMD11           ; WAIT READY BIT SET
+ E936 39                      RTS
+
+                      ;* WRITE A BLOCK OF DATA FROM MEMORY TO THE CF CARD
+                      ;* LOOP UNTIL THE DRQ BIT = 0 (B3)
+                      ;* CF BLOCK IS 512 BYTES - RANDOM WRITE AT EACH ODD POSITION
+                      ;* X = BUFFER BEGIN ADDRESS
+                      ;* A = TRACK NUMBER
+                      ;* B = SECTOR NUMBER
+
+ E937 3470            E1WSEC  PSHS    U,X,Y
+ E939 FDDEB6                  STD     CFTRK               ; STORE TRACK-SECTOR IN TABLE
+ E93C 8D93                    BSR     INTER
+ E93E 1A50                    ORCC    #$50                ; DISABLE IRQ
+ E940 BDE992                  JSR     COMPLBA             ; COMPUTE LBA NUMBER
+ E943 BDE96E                  JSR     SETLBA
+ E946 108E0000                LDY     #$0000
+ E94A 8DE0                    BSR     CMDWAI1
+ E94C C630                    LDB     #$30                ; SEND WRITE COMMAND TO THE CF CARD
+ E94E E79FDEC0                STB     [CFSTATUL]
+ E952 8DCF                    BSR     DATWAI1
+ E954 E680            WRL1    LDB     ,X+                 ; READ BYTE FROM BUFFER
+ E956 E79FDEBE                STB     [CFADDRES]          ; WRITE THE DATA BYTE TO THE CF CARD (ONLY D0-D7)
+ E95A 8DC7                    BSR     DATWAI1
+ E95C A69FDEC0                LDA     [CFSTATUL]
+ E960 8508                    BITA    #$08                ; CHECK IF CF SAY WRITE FINISHED
+ E962 26F0                    BNE     WRL1
+ E964 1CAF                    ANDCC   #$AF                ; ENABLE IRQ
+ E966 5F                      CLRB                        ; NO ERROR CODE SET Z CLEAR C
+ E967 35F0                    PULS    U,X,Y,PC            ; RETURN WITH Z=1
+
+                      ;* CF SEEK + CF VERIFY
+                      ;* RETURN WITH Z=1 AND C=0 SO VERIFY AND SEEK ALWAYS OK
+
+ E969 FDDEB6          E1CFSEK STD     CFTRK           ; STORE CF TRACK SECTOR NUMBERS IN TABLE
+ E96C 5F              E1CFVRY CLRB                    ; NO ERROR CODE SET Z CLEAR C
+ E96D 39                      RTS
+
+                      ;* SET LBA VALUES INTO CF REGISTERS
+
+ E96E 3434            SETLBA  PSHS    X,Y,B
+ E970 8DBA                    BSR     CMDWAI1
+ E972 BEDEBE                  LDX     CFADDRES
+ E975 3003                    LEAX    CFLBA0,X
+ E977 108EDEB2                LDY     #LBA0
+ E97B E6A0            LBAL    LDB     ,Y+             ; LOAD CURRENT LBA FROM TABLE
+ E97D E780                    STB     ,X+             ; SET LBA IN CF
+ E97F 8DAB                    BSR     CMDWAI1
+ E981 108CDEB6                CMPY    #LBA0+4
+ E985 26F4                    BNE     LBAL
+ E987 C601                    LDB     #$01            ; READ ONLY ONE SECTOR AT A TIME.
+ E989 BEDEBE                  LDX     CFADDRES
+ E98C E702                    STB     CFSECCNT,X
+ E98E 8D9C                    BSR     CMDWAI1
+ E990 35B4                    PULS    X,Y,B,PC
+
+                      ;*   COMPUTE LBA WITH TRACK AND SECTOR NUMBERS
+
+ E992 3406            COMPLBA PSHS    A,B
+ E994 7FDEC2                  CLR     CFSEC16         ; SET SECTOR AS 16 BITS NUMBER INTO CFSEC16
+ E997 B6DEB7                  LDA     CFSEC
+ E99A B7DEC3                  STA     CFSEC16+1       ; STORE SECTOR NUMBER INTO LSB OF CFSEC16
+ E99D B6DEB6                  LDA     CFTRK           ; LOAD TRACK NUMBER
+ E9A0 F6DEB9                  LDB     CFMSEC          ; LOAD SECTORS / TRACK
+ E9A3 3D                      MUL                     ; MULTIPLY A.B TO A AND B (A MSB)
+ E9A4 F3DEC2                  ADDD    CFSEC16         ; ADD IT TO D
+ E9A7 830001                  DECD                    ; -1
+ E9AA F7DEB2                  STB     LBA0
+ E9AD B7DEB3                  STA     LBA1
+ E9B0 3586                    PULS    A,B,PC
+
+                      ;*   CHECK IF CF 1 + 2 PRESENT
+                      ;*   ROUTINE IS ON EPROM PAGE 0
+
+ E9B2 108EE92F        E1CHKCF LDY      #E0CHKCF       ; LOAD JUMP ADDRESS
+ E9B6 10BFDED4                STY      JMPADR         ; STORE
+ E9BA 108EE9C1                LDY      #*+7           ; PREPARE A RETURN ADDRESS - RTS JUST BELOW
+ E9BE 7EE82D                  JMP      CALLRT1        ; GO TO PREPARE STACK AND JUMP
+ E9C1 39                      RTS
+
+                      ;*   LOAD CF BOOT SECTOR AND JUMP
+                      ;*   ROUTINE IS ON EPROM PAGE 0
+
+ E9C2 7FCC34          E1CFBT  CLR      PRCNT           ; MUST CLEAR THIS TO AVOID SWI3 AT BOOT
+ E9C5 108EE8CA                LDY      #E0CFBT         ; LOAD JUMP ADDRESS ROUTINE
+ E9C9 10BFDED4                STY      JMPADR          ; STORE
+ E9CD 108EE9D4                LDY      #*+7            ; PREPARE A RETURN ADDRESS - RTS JUST BELOW
+ E9D1 7EE82D                  JMP      CALLRT1         ; GO TO PREPARE STACK AND JUMP
+ E9D4 39                      RTS
+
+                      ;* FILL WITH $00 TO END OF PAGE
+
+ E9D5 00                      FCB      $00
+ E9D6 00                      FCB      $00
+ E9D7 00                      FCB      $00
+ E9D8 00                      FCB      $00
+ E9D9 00                      FCB      $00
+ E9DA 00                      FCB      $00
+ E9DB 00                      FCB      $00
+ E9DC 00                      FCB      $00
+ E9DD 00                      FCB      $00
+ E9DE 00                      FCB      $00
+ E9DF 00                      FCB      $00
+ E9E0 00                      FCB      $00
+ E9E1 00                      FCB      $00
+ E9E2 00                      FCB      $00
+ E9E3 00                      FCB      $00
+ E9E4 00                      FCB      $00
+ E9E5 00                      FCB      $00
+ E9E6 00                      FCB      $00
+ E9E7 00                      FCB      $00
+ E9E8 00                      FCB      $00
+ E9E9 00                      FCB      $00
+ E9EA 00                      FCB      $00
+ E9EB 00                      FCB      $00
+ E9EC 00                      FCB      $00
+ E9ED 00                      FCB      $00
+ E9EE 00                      FCB      $00
+ E9EF 00                      FCB      $00
+ E9F0 00                      FCB      $00
+ E9F1 00                      FCB      $00
+ E9F2 00                      FCB      $00
+ E9F3 00                      FCB      $00
+ E9F4 00                      FCB      $00
+ E9F5 00                      FCB      $00
+ E9F6 00                      FCB      $00
+ E9F7 00                      FCB      $00
+ E9F8 00                      FCB      $00
+ E9F9 00                      FCB      $00
+ E9FA 00                      FCB      $00
+ E9FB 00                      FCB      $00
+ E9FC 00                      FCB      $00
+ E9FD 00                      FCB      $00
+ E9FE 00                      FCB      $00
+ E9FF 00                      FCB      $00
+
+
+
+SYMBOL TABLE
+   CALLRT0 02 E830   CALLRT1 02 E82D        CF 02 E9A2       CF1 02 E9B6
+ CF1ADDRES 00 EE80   CF1MSEC 00 DEBB   CF1MTRK 00 DEBA CF2ADDRES 00 EEF0
+   CF2MSEC 00 DEBD   CF2MTRK 00 DEBC  CFADDRES 00 DEBE    CFBOOT 02 E827
+    CFBUFF 00 EA00 CFCOMMAND 00 0007    CFDATA 00 0000  CFDSKNB1 00 0002
+  CFDSKNB2 00 0003    CFERR0 02 E8AF   CFERROR 00 0001 CFFEATURE 00 0001
+    CFLBA0 00 0003    CFLBA1 00 0004    CFLBA2 00 0005    CFLBA3 00 0006
+    CFMSEC 00 DEB9    CFMTRK 00 DEB8      CFOK 00 DEB0     CFSEC 00 DEB7
+   CFSEC16 00 DEC2  CFSECCNT 00 0002    CFSEEK 02 E821     CFSEL 00 DEB1
+  CFSTATUL 00 DEC0  CFSTATUS 00 0007     CFTAB 00 DECC     CFTRK 00 DEB6
+    CFVRFY 02 E824    CHGPA0 02 E83E    CHGPA1 02 E83B     CHKCF 02 E818
+    CHKFLX 02 E90D    CHKRDY 02 E812     CMD10 02 E8C1     CMD11 02 E92E
+    CMDAD1 00 C100    CMDAD2 00 C200   CMDWAI0 02 E8BF   CMDWAI1 02 E92C
+   COMPLBA 02 E992   DATWAI0 02 E8B6   DATWAI1 02 E923     DREAD 00 DE00
+       DRV 02 E80F    DSKTAB 00 DE80    E0CFBT 02 E8CA   E0CHKCF 02 E92F
+     E0DRV 02 E98B   E0ENDTS 02 E9CE    E0INCF 02 E84C     E0MVT 02 E976
+    E0MVT1 02 E978    E0SCF1 02 E955    E0SCF2 02 E95F   E0TSTCF 02 E9C6
+    E1CFBT 02 E9C2   E1CFRDY 02 E8DA   E1CFSEK 02 E969   E1CFVRY 02 E96C
+   E1CHKCF 02 E9B2   E1CHRDY 02 E8A8     E1DRV 02 E890   E1QUICK 02 E8C0
+   E1RDBO1 02 E8F9   E1RDBOT 02 E8F6    E1READ 02 E856    E1RSEC 02 E8EE
+     E1RST 02 E87D    E1SEEK 02 E84C   E1TSTCF 02 E89F   E1VERIF 02 E870
+    E1WRIT 02 E863    E1WSEC 02 E937    EDRSEL 00 F012     EINIT 00 F01E
+   EINITAB 00 F01E     ENDCF 02 E9B8    ENDCHK 02 E954   ENDCKFX 02 E92E
+    ENDDRV 02 E9C4   ENDINIT 02 E8AE    ENDINT 02 E8D9    ENDTST 02 E8A7
+     EREAD 00 F006    ERESTO 00 F00F     ESEEK 00 F003    ETEMPO 00 F206
+    EVERIF 00 F015    EWRITE 00 F009       FLP 02 E8AE     FLTAB 00 DEC4
+     INIT0 02 E855     INIT1 02 E864    INPBUF 00 C080     INTER 02 E8D1
+      JMP1 02 E902    JMPADR 00 DED4      LBA0 00 DEB2      LBA1 00 DEB3
+      LBA2 00 DEB4      LBA3 00 DEB5      LBAL 02 E97B      NOCF 02 E9C0
+      NRDY 02 E8CA        OK 02 E8CF     PRCNT 00 CC34    PRPCF1 02 E952
+      QFLP 02 E8C6     QUICK 02 E815    RDBOL1 02 E90E    RDBOOT 02 E82A
+   RDCFSEC 02 E81B      READ 02 E803    REBOOT 02 E909     RESET 00 FFFE
+  ROMLATCH 00 EEB0       RST 02 E80C    RSTFLP 02 E884      SEEK 02 E800
+    SETLBA 02 E96E    STORCF 02 E967      TEST 02 E8B4     TEST1 02 E8B7
+     VERIF 02 E809   WRCFSEC 02 E81E     WRITE 02 E806      WRL1 02 E954
+136 SYMBOLS
+
+0 error(s), 0 warning(s)
